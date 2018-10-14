@@ -1,0 +1,32 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "ES5",
+        "preserveConstEnums": true,
+        "rootDir": "src/",
+        "outDir": "dist/",
+        "experimentalDecorators": true,
+        "newLine": "LF",
+        "noUnusedParameters": true,
+        "noUnusedLocals": true,
+        "importHelpers": true,
+        "pretty": true,
+        "removeComments": true,
+        "sourceMap": true,
+        "lib": [
+            "es5",
+            "es2015.promise",
+            "es2015.symbol",
+            "es2015.generator",
+            "es2015.core",
+            "es2015.iterable"
+        ]
+    },
+    "includes": [
+        "src/index.ts"
+    ],
+    "exclude": [
+        "examples/*",
+        "./node_modules/*"
+    ]
+}
