@@ -36,12 +36,6 @@ needs not fulfilled.
 But CP-Queue, is pure JavaScript, based on IPC sockets, do not need any extra 
 effort to install and run. It's safe, and much simpler than other packages.
 
-## Install
-
-```sh
-npm i cp-queue
-```
-
 ## Example
 
 In this example, I will use cluster to fork several child-processes, but using 
@@ -103,7 +97,7 @@ but brings the most powerful queue-lock function cross processes into NodeJS.
         it, i.e. exits unexpected), the next task will be run anyway when 
         timeout.
 
-    This method also support another signature:
+    This method also supports another signature:
     - `queue.connect(timeout: number, handler: (err: Error) => void): this`
         - `handler` You can put logic here to run after the connection is 
             established.
