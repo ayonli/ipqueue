@@ -30,6 +30,8 @@
     "find-process": "^1.1.3",
     "fs-extra": "^7.0.0",
     "lodash": "^4.17.11",
+    "node-netstat": "^1.4.2",
+    "portproc": "^1.1.1",
     "tslib": "^1.9.3",
     "uuid": "^3.3.2"
   },

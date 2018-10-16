@@ -1,7 +1,6 @@
 import * as net from "net";
-import * as os from "os";
-import * as fs from "fs-extra";
 import first = require("lodash/first");
+import netstat = require("node-netstat");
 import { receive, send } from "./transfer";
 
 type Task = { id: string, socket: net.Socket };
@@ -16,7 +15,7 @@ const Queues: {
 // When a client acquires the queue lock, the first task in the queue should run.
 // And when the client release the queue lock, remove the running task from the 
 // queue, and run the next task.
-export async function createServer(pid: number, timeout = 5000) {
+export async function createServer(timeout = 5000) {
     let server = net.createServer(socket => {
         let port = (<net.AddressInfo>server.address()).port;
 
@@ -94,25 +93,16 @@ export async function createServer(pid: number, timeout = 5000) {
             resolve(null);
         });
     });
-    await setPort(pid, (<net.AddressInfo>server.address()).port);
 
     return server;
 }
 
-export async function setPort(pid: number, port: number) {
-    let dir = os.tmpdir() + "/.cp-queue",
-        file = dir + "/" + pid;
-
-    await fs.ensureDir(dir);
-    await fs.writeFile(file, port, "utf8");
-}
-
-export async function getPort(pid: number) {
-    let file = os.tmpdir() + "/.cp-queue/" + pid;
-    try {
-        let data = await fs.readFile(file, "utf8");
-        return parseInt(data) || 0;
-    } catch (err) {
-        return 0;
-    }
+export function getPort(pid: number): Promise<number> {
+    return new Promise((resolve, reject) => {
+        netstat({
+            limit: 1,
+            filter: { pid, protocol: "tcp6" },
+            done: (err) => err ? reject(err) : resolve(0)
+        }, item => resolve(item.local.port));
+    });
 }

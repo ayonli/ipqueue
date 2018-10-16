@@ -3,7 +3,6 @@ import * as path from "path";
 import findProcess = require("find-process");
 import startsWith = require("lodash/startsWith");
 import endsWith = require("lodash/endsWith");
-import includes = require("lodash/includes");
 import { createServer, getPort } from './server';
 
 /** Entry script filename */
@@ -13,19 +12,18 @@ script = endsWith(script, ".js") ? script.slice(0, -3) : script;
 script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
 
 async function getHostPid() {
-    let processes = await findProcess("name", "node"),
-        pids: number[] = [];
+    let processes = await findProcess("name", "node");
 
     for (let item of processes) {
         let pid = parseInt(item.pid),
             cmd = item.cmd.replace(/"/g, "");
 
-        if (startsWith(cmd, process.execPath) && includes(cmd, script)) {
-            pids.push(pid);
+        if (startsWith(cmd, process.execPath) && cmd.includes(script)) {
+            return pid;
         }
     }
 
-    return pids.length ? pids[0] : process.pid;
+    return process.pid;
 }
 
 function tryConnect(port: number): Promise<net.Socket> {
@@ -77,7 +75,7 @@ export function getConnection(timeout = 5000, pid?: number) {
 
             if (!conn) {
                 if (pid === process.pid) {
-                    let server = await createServer(pid, timeout);
+                    let server = await createServer(timeout);
                     if (server) {
                         conn = await tryConnect((<net.AddressInfo>server.address()).port);
                     }
@@ -86,7 +84,7 @@ export function getConnection(timeout = 5000, pid?: number) {
 
             conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         } else {
-            let server = await createServer(pid, timeout);
+            let server = await createServer(timeout);
             if (server)
                 conn = await tryConnect((<net.AddressInfo>server.address()).port);
 
