@@ -86,7 +86,7 @@ There are very few API in this package, it's designed to be as simple as it can,
 but brings the most powerful queue-lock function cross processes into NodeJS.
 
 - `new CPQueue()` create a queue instance.
-- `queue.length: number` Returns the length of tasks in the queue that wait to 
+- `queue.length: number` Returns the length of tasks in the queue waiting to 
     run.
 - `queue.connected: boolean` Returns `true` if the queue is connected to the 
     server, `false` otherwise.
@@ -122,3 +122,38 @@ have to worry that the program will try to create the server several times since
 it may run in multiple processes. Well, it will not. This package itself has an 
 inner algorithm to decide when and which process should host the queue server, 
 and other processes will just try to connect it.
+
+## How It Works?
+
+For the people who wants to know the principle of the package or a way to 
+implement a cross-process queue server, I'm here to share my idea.
+
+The secret is quite simple, but yet somehow not well-known. The main idea is 
+shiping a socket server in one of the sub-processes. This package uses 
+[`find-process`](https://npmjs.com/package/find-process) to find out all running
+processes that match the `process.mainModule.filename`, which are considered the
+sub-processes forked or spwaned by the main NodeJS process, and returns the 
+first matched process pid for usage to ship the server. All sub-processes will 
+(even master process can) connect to this server, the server will save the state
+of the queue, like the current running task id, etc.
+
+When a task is pushed to the queue, it will send a request contains a unique 
+task id (I use [uuid](https://npmjs.com/package/uuid)) to the server to ask 
+for a lock. The server will check if there is undone work, if a previous task is
+not finished (released), the new task will be put in a real queue (actually an 
+array). Whe a task finishes and send a request to the server says release, the 
+server will remove the finished task from the queue, and starts the next task. 
+By repeatedly running this procedure, the queue will work as expected until you 
+exit the process.
+
+Of course more situation should be considered, e.g. the queue server process 
+exits unexpected, other processes should listen the event when connection lost,
+and try to ship a new server immediately. Another situation is that a process 
+acquired the queue lock, and failed to release it, say the process exited before 
+releasing the lock, the server should set a timer to force release when timeout.
+
+**Why not ship the server in master process?** If you have full control of your 
+program that is ok to ship the server in the master, but, if you program is 
+running under the supervision of PM2, clearly you have no control of the master
+process, so shiping the server in one of the child-process is the best and 
+safest way to keep your code running everywhere.

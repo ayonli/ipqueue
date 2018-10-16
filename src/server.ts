@@ -21,8 +21,8 @@ export async function createServer(pid: number, timeout = 5000) {
         let port = (<net.AddressInfo>server.address()).port;
 
         socket.on("data", (buf) => {
-            for (let [event, data] of receive(buf)) {
-                socket.emit(event, data);
+            for (let [event, id, extra] of receive(buf)) {
+                socket.emit(event, id, extra);
             }
         }).on("acquire", (id: string) => {
             let queue = Queues[port];
@@ -65,6 +65,9 @@ export async function createServer(pid: number, timeout = 5000) {
             }
         }).on("closesServer", () => {
             server.close();
+        }).on("getLength", (id: string) => {
+            let length = Queues[port].tasks.length;
+            !socket.destroyed && socket.write(send("gotLength", id, length && length - 1));
         }).on("error", (err) => {
             if (err.message.indexOf("socket has been ended") >= 0) {
                 try {

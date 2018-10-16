@@ -1,19 +1,26 @@
 import * as net from "net";
+import * as path from "path";
 import findProcess = require("find-process");
+import startsWith = require("lodash/startsWith");
 import endsWith = require("lodash/endsWith");
+import includes = require("lodash/includes");
 import { createServer, getPort } from './server';
 
+/** Entry script filename */
+let script = process.mainModule.filename;
+
+script = endsWith(script, ".js") ? script.slice(0, -3) : script;
+script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
+
 async function getHostPid() {
-    let script = process.mainModule.filename,
-        processes = await findProcess("name", "node"),
+    let processes = await findProcess("name", "node"),
         pids: number[] = [];
 
-    script = endsWith(script, ".js") ? script.slice(0, -3) : script;
-    script = endsWith(script, "/index") ? script.slice(0, -6) : script;
-
     for (let item of processes) {
-        let pid = parseInt(item.pid);
-        if (item.name == "node" && item.cmd.lastIndexOf(script) >= 0) {
+        let pid = parseInt(item.pid),
+            cmd = item.cmd.replace(/"/g, "");
+
+        if (startsWith(cmd, process.execPath) && includes(cmd, script)) {
             pids.push(pid);
         }
     }
@@ -40,13 +47,13 @@ function tryConnect(port: number): Promise<net.Socket> {
     });
 }
 
-function retryConnect(resolve, reject, timeout) {
+function retryConnect(resolve, reject, timeout: number, pid: number) {
     let conn: net.Socket,
         retries = 0,
-        maxRetries = Math.ceil(timeout / 10),
+        maxRetries = Math.ceil(timeout / 50),
         timer = setInterval(async () => {
             retries++;
-            conn = await getConnection(timeout);
+            conn = await getConnection(timeout, pid);
 
             if (conn) {
                 resolve(conn);
@@ -57,13 +64,13 @@ function retryConnect(resolve, reject, timeout) {
                     + Math.round(timeout / 1000) + " seconds of timeout");
                 reject(err);
             }
-        }, 10);
+        }, 50);
 }
 
-export function getConnection(timeout = 5000) {
+export function getConnection(timeout = 5000, pid?: number) {
     return new Promise(async (resolve: (value: net.Socket) => void, reject) => {
-        let conn: net.Socket,
-            pid = await getHostPid();
+        let conn: net.Socket;
+        pid = pid || await getHostPid();
 
         if (process.connected) { // child process
             conn = await tryConnect(await getPort(pid));
@@ -77,13 +84,13 @@ export function getConnection(timeout = 5000) {
                 }
             }
 
-            conn ? resolve(conn) : retryConnect(resolve, reject, timeout);
+            conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         } else {
             let server = await createServer(pid, timeout);
             if (server)
                 conn = await tryConnect((<net.AddressInfo>server.address()).port);
 
-            conn ? resolve(conn) : retryConnect(resolve, reject, timeout);
+            conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         }
     });
 }

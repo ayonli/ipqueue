@@ -18,8 +18,8 @@ function createServer(pid, timeout) {
                         var port = server.address().port;
                         socket.on("data", function (buf) {
                             for (var _i = 0, _a = transfer_1.receive(buf); _i < _a.length; _i++) {
-                                var _b = _a[_i], event = _b[0], data = _b[1];
-                                socket.emit(event, data);
+                                var _b = _a[_i], event = _b[0], id = _b[1], extra = _b[2];
+                                socket.emit(event, id, extra);
                             }
                         }).on("acquire", function (id) {
                             var queue = Queues[port];
@@ -55,6 +55,9 @@ function createServer(pid, timeout) {
                             }
                         }).on("closesServer", function () {
                             server.close();
+                        }).on("getLength", function (id) {
+                            var length = Queues[port].tasks.length;
+                            !socket.destroyed && socket.write(transfer_1.send("gotLength", id, length && length - 1));
                         }).on("error", function (err) {
                             if (err.message.indexOf("socket has been ended") >= 0) {
                                 try {

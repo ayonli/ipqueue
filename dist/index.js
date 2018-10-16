@@ -11,21 +11,22 @@ var CPQueue = (function () {
     }
     CPQueue.prototype.connect = function (timeout, handler) {
         var _this = this;
+        this.timeout = timeout || 5000;
         var createConnection = function () { return tslib_1.__awaiter(_this, void 0, void 0, function () {
-            var _a;
             var _this = this;
+            var _a;
             return tslib_1.__generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
                         this.disconnect();
                         _a = this;
-                        return [4, connection_1.getConnection(timeout || 5000)];
+                        return [4, connection_1.getConnection(this.timeout)];
                     case 1:
                         _a.connection = _b.sent();
                         this.connection.on("data", function (buf) {
                             for (var _i = 0, _a = transfer_1.receive(buf); _i < _a.length; _i++) {
-                                var _b = _a[_i], event = _b[0], id = _b[1];
-                                _this.tasks[id].emit(event, id);
+                                var _b = _a[_i], event = _b[0], id = _b[1], extra = _b[2];
+                                _this.tasks[id].emit(event, id, extra);
                             }
                         }).on("error", function (err) { return tslib_1.__awaiter(_this, void 0, void 0, function () {
                             var err_1;
@@ -116,13 +117,6 @@ var CPQueue = (function () {
         this.sendMsg("acquire", id);
         return this;
     };
-    Object.defineProperty(CPQueue.prototype, "length", {
-        get: function () {
-            return Object.keys(this.tasks).length;
-        },
-        enumerable: true,
-        configurable: true
-    });
     Object.defineProperty(CPQueue.prototype, "connected", {
         get: function () {
             return !!this.connection && !this.connection.destroyed;
@@ -130,6 +124,35 @@ var CPQueue = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(CPQueue.prototype, "length", {
+        get: function () {
+            return Object.keys(this.tasks).length;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    CPQueue.prototype.getRealLength = function () {
+        var _this = this;
+        return new Promise(function (resolve, reject) {
+            if (!_this.connected)
+                return resolve(0);
+            var id = uuid(), timer = setTimeout(function () {
+                reject(new Error("failed to get queue length"));
+            }, _this.timeout);
+            _this.tasks[id] = new events_1.EventEmitter();
+            _this.tasks[id].once("gotLength", function (id, length) {
+                clearTimeout(timer);
+                try {
+                    delete _this.tasks[id];
+                    resolve(length);
+                }
+                catch (err) {
+                    reject(err);
+                }
+            });
+            _this.sendMsg("getLength", id);
+        });
+    };
     CPQueue.prototype.sendMsg = function (event, id) {
         var _this = this;
         this.lastMsg = [event, id];

@@ -2,25 +2,27 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
 var net = require("net");
+var path = require("path");
 var findProcess = require("find-process");
+var startsWith = require("lodash/startsWith");
 var endsWith = require("lodash/endsWith");
+var includes = require("lodash/includes");
 var server_1 = require("./server");
+var script = process.mainModule.filename;
+script = endsWith(script, ".js") ? script.slice(0, -3) : script;
+script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
 function getHostPid() {
     return tslib_1.__awaiter(this, void 0, void 0, function () {
-        var script, processes, pids, _i, processes_1, item, pid;
+        var processes, pids, _i, processes_1, item, pid, cmd;
         return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
-                case 0:
-                    script = process.mainModule.filename;
-                    return [4, findProcess("name", "node")];
+                case 0: return [4, findProcess("name", "node")];
                 case 1:
                     processes = _a.sent(), pids = [];
-                    script = endsWith(script, ".js") ? script.slice(0, -3) : script;
-                    script = endsWith(script, "/index") ? script.slice(0, -6) : script;
                     for (_i = 0, processes_1 = processes; _i < processes_1.length; _i++) {
                         item = processes_1[_i];
-                        pid = parseInt(item.pid);
-                        if (item.name == "node" && item.cmd.lastIndexOf(script) >= 0) {
+                        pid = parseInt(item.pid), cmd = item.cmd.replace(/"/g, "");
+                        if (startsWith(cmd, process.execPath) && includes(cmd, script)) {
                             pids.push(pid);
                         }
                     }
@@ -46,15 +48,15 @@ function tryConnect(port) {
         });
     });
 }
-function retryConnect(resolve, reject, timeout) {
+function retryConnect(resolve, reject, timeout, pid) {
     var _this = this;
-    var conn, retries = 0, maxRetries = Math.ceil(timeout / 10), timer = setInterval(function () { return tslib_1.__awaiter(_this, void 0, void 0, function () {
+    var conn, retries = 0, maxRetries = Math.ceil(timeout / 50), timer = setInterval(function () { return tslib_1.__awaiter(_this, void 0, void 0, function () {
         var err;
         return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     retries++;
-                    return [4, getConnection(timeout)];
+                    return [4, getConnection(timeout, pid)];
                 case 1:
                     conn = _a.sent();
                     if (conn) {
@@ -70,49 +72,55 @@ function retryConnect(resolve, reject, timeout) {
                     return [2];
             }
         });
-    }); }, 10);
+    }); }, 50);
 }
-function getConnection(timeout) {
+function getConnection(timeout, pid) {
     var _this = this;
     if (timeout === void 0) { timeout = 5000; }
     return new Promise(function (resolve, reject) { return tslib_1.__awaiter(_this, void 0, void 0, function () {
-        var conn, pid, _a, server, server;
-        return tslib_1.__generator(this, function (_b) {
-            switch (_b.label) {
-                case 0: return [4, getHostPid()];
+        var conn, _a, _b, server, server;
+        return tslib_1.__generator(this, function (_c) {
+            switch (_c.label) {
+                case 0:
+                    _a = pid;
+                    if (_a) return [3, 2];
+                    return [4, getHostPid()];
                 case 1:
-                    pid = _b.sent();
-                    if (!process.connected) return [3, 7];
-                    _a = tryConnect;
+                    _a = (_c.sent());
+                    _c.label = 2;
+                case 2:
+                    pid = _a;
+                    if (!process.connected) return [3, 8];
+                    _b = tryConnect;
                     return [4, server_1.getPort(pid)];
-                case 2: return [4, _a.apply(void 0, [_b.sent()])];
-                case 3:
-                    conn = _b.sent();
-                    if (!!conn) return [3, 6];
-                    if (!(pid === process.pid)) return [3, 6];
-                    return [4, server_1.createServer(pid, timeout)];
+                case 3: return [4, _b.apply(void 0, [_c.sent()])];
                 case 4:
-                    server = _b.sent();
-                    if (!server) return [3, 6];
-                    return [4, tryConnect(server.address().port)];
+                    conn = _c.sent();
+                    if (!!conn) return [3, 7];
+                    if (!(pid === process.pid)) return [3, 7];
+                    return [4, server_1.createServer(pid, timeout)];
                 case 5:
-                    conn = _b.sent();
-                    _b.label = 6;
-                case 6:
-                    conn ? resolve(conn) : retryConnect(resolve, reject, timeout);
-                    return [3, 11];
-                case 7: return [4, server_1.createServer(pid, timeout)];
-                case 8:
-                    server = _b.sent();
-                    if (!server) return [3, 10];
+                    server = _c.sent();
+                    if (!server) return [3, 7];
                     return [4, tryConnect(server.address().port)];
+                case 6:
+                    conn = _c.sent();
+                    _c.label = 7;
+                case 7:
+                    conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
+                    return [3, 12];
+                case 8: return [4, server_1.createServer(pid, timeout)];
                 case 9:
-                    conn = _b.sent();
-                    _b.label = 10;
+                    server = _c.sent();
+                    if (!server) return [3, 11];
+                    return [4, tryConnect(server.address().port)];
                 case 10:
-                    conn ? resolve(conn) : retryConnect(resolve, reject, timeout);
-                    _b.label = 11;
-                case 11: return [2];
+                    conn = _c.sent();
+                    _c.label = 11;
+                case 11:
+                    conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
+                    _c.label = 12;
+                case 12: return [2];
             }
         });
     }); });
