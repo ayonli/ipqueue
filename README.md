@@ -107,6 +107,8 @@ but brings the most powerful queue-lock function cross processes into NodeJS.
 - `queue.push(task: (next: () => void) => void): this` Pushes a task into the 
     queue, the program will send a request to the queue server for acquiring a 
     lock, and wait until the lock has been acquired, run the task automatically.
+- `queue.getRealLength(): Promise<number>` Gets the real queue length in the 
+    queue server.
 - `queue.onError(handler: (err: Error) => void): this` Binds an error handler to
     run whenever the error occurred.
 - `queue.closeServer(): void` Closes the queue server. Most often you don't need
