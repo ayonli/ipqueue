@@ -4,7 +4,7 @@ import findProcess = require("find-process");
 import startsWith = require("lodash/startsWith");
 import endsWith = require("lodash/endsWith");
 import trimStart = require("lodash/trimStart");
-import { createServer, getPort } from './server';
+import { createServer, getSocketAddr } from './server';
 
 /** Entry script filename */
 let script = process.mainModule.filename;
@@ -27,15 +27,15 @@ async function getHostPid() {
     return process.pid;
 }
 
-function tryConnect(port: number): Promise<net.Socket> {
+function tryConnect(addr: string | number): Promise<net.Socket> {
     return new Promise((resolve: (value: net.Socket) => void, reject) => {
-        if (!port)
+        if (!addr)
             return resolve(null);
 
-        let conn = net.createConnection(port);
+        let conn = net.createConnection(<any>addr);
 
         conn.on("error", (err) => {
-            if (err["code"] == "ECONNREFUSED") {
+            if (err["code"] == "ECONNREFUSED" || err["code"] == "ENOENT") {
                 resolve(null);
             } else {
                 reject(err);
@@ -72,7 +72,7 @@ export function getConnection(timeout = 5000, pid?: number) {
         pid = pid || await getHostPid();
 
         if (process.connected) { // child process
-            conn = await tryConnect(await getPort(pid));
+            conn = await tryConnect(await getSocketAddr(pid));
 
             if (!conn) {
                 if (pid === process.pid) {

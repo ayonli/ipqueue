@@ -1,6 +1,6 @@
 {
   "name": "cp-queue",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A cross-platform, cross-process asynchronous queue implementation for NodeJS.",
   "main": "dist/index.js",
   "types": "src/index.ts",

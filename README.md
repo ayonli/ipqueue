@@ -170,6 +170,6 @@ releasing the lock, the server should set a timer to force release when timeout.
 
 **Why not ship the server in master process?** If you have full control of your 
 program that is ok to ship the server in the master, but, if you program is 
-running under the supervision of PM2, clearly you have no control of the master
-process, so shipping the server in one of the child-process is the best and 
-safest way to keep your code running everywhere.
+running under the supervision of [PM2](https://github.com/Unitech/pm2), clearly 
+you have no control of the master process, so shipping the server in one of the 
+child-process is the best and safest way to keep your code running everywhere.

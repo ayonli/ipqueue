@@ -6,6 +6,7 @@ const os = require("os");
 const fs = require("fs-extra");
 const first = require("lodash/first");
 const transfer_1 = require("./transfer");
+const isWin32 = process.platform == "win32";
 const Queue = {
     current: void 0,
     tasks: [],
@@ -71,11 +72,23 @@ function createServer(pid, timeout = 5000) {
                 else {
                     resolve(null);
                 }
-            }).listen(() => {
-                resolve(null);
             });
+            if (isWin32) {
+                server.listen(() => {
+                    resolve(null);
+                });
+            }
+            else {
+                getSocketAddr(pid).then(path => {
+                    server.listen(path, () => {
+                        resolve(null);
+                    });
+                });
+            }
         });
-        yield setPort(pid, server.address().port);
+        if (isWin32) {
+            yield setPort(pid, server.address().port);
+        }
         return server;
     });
 }
@@ -87,10 +100,11 @@ function setPort(pid, port) {
         yield fs.writeFile(file, port, "utf8");
     });
 }
-exports.setPort = setPort;
-function getPort(pid) {
+function getSocketAddr(pid) {
     return tslib_1.__awaiter(this, void 0, void 0, function* () {
         let file = os.tmpdir() + "/.cp-queue/" + pid;
+        if (!isWin32)
+            return file;
         try {
             let data = yield fs.readFile(file, "utf8");
             return parseInt(data) || 0;
@@ -100,5 +114,5 @@ function getPort(pid) {
         }
     });
 }
-exports.getPort = getPort;
+exports.getSocketAddr = getSocketAddr;
 //# sourceMappingURL=server.js.map

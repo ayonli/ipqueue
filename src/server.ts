@@ -5,6 +5,7 @@ import first = require("lodash/first");
 import { receive, send } from "./transfer";
 
 type Task = { id: string, socket: net.Socket };
+const isWin32 = process.platform == "win32";
 const Queue: {
     current: Task["id"];
     tasks: Task[];
@@ -83,16 +84,31 @@ export async function createServer(pid: number, timeout = 5000) {
             } else {
                 resolve(null);
             }
-        }).listen(() => {
-            resolve(null);
         });
+        
+        if (isWin32) {
+            // in Windows, bind a random port
+            server.listen(() => {
+                resolve(null);
+            });
+        } else {
+            // in Uinx, bind to a domain socket
+            getSocketAddr(pid).then(path => {
+                server.listen(path , () => {
+                    resolve(null);
+                });
+            });
+        }
     });
-    await setPort(pid, (<net.AddressInfo>server.address()).port);
+
+    if (isWin32) {
+        await setPort(pid, (<net.AddressInfo>server.address()).port);
+    }
 
     return server;
 }
 
-export async function setPort(pid: number, port: number) {
+async function setPort(pid: number, port: number) {
     let dir = os.tmpdir() + "/.cp-queue",
         file = dir + "/" + pid;
 
@@ -100,8 +116,11 @@ export async function setPort(pid: number, port: number) {
     await fs.writeFile(file, port, "utf8");
 }
 
-export async function getPort(pid: number) {
+export async function getSocketAddr(pid: number): Promise<string | number> {
     let file = os.tmpdir() + "/.cp-queue/" + pid;
+
+    if (!isWin32) return file;
+
     try {
         let data = await fs.readFile(file, "utf8");
         return parseInt(data) || 0;
