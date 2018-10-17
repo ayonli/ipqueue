@@ -3,7 +3,6 @@ import * as path from "path";
 import findProcess = require("find-process");
 import startsWith = require("lodash/startsWith");
 import endsWith = require("lodash/endsWith");
-import includes = require("lodash/includes");
 import trimStart = require("lodash/trimStart");
 import { createServer, getPort } from './server';
 
@@ -20,7 +19,7 @@ async function getHostPid() {
         let pid = parseInt(item.pid),
             cmd = trimStart(item.cmd, '"');
 
-        if (startsWith(cmd, process.execPath) && includes(cmd, script)) {
+        if (startsWith(cmd, process.execPath) && cmd.includes(script)) {
             return pid;
         }
     }
