@@ -62,7 +62,7 @@ function createServer(pid, timeout = 5000) {
                 }
             });
         });
-        yield new Promise((resolve, reject) => {
+        yield new Promise((resolve, reject) => tslib_1.__awaiter(this, void 0, void 0, function* () {
             server.once("error", (err) => {
                 server.close();
                 server.unref();
@@ -79,13 +79,15 @@ function createServer(pid, timeout = 5000) {
                 });
             }
             else {
-                getSocketAddr(pid).then(path => {
-                    server.listen(path, () => {
-                        resolve(null);
-                    });
+                let path = yield getSocketAddr(pid);
+                if (yield fs.pathExists(path)) {
+                    yield fs.unlink(path);
+                }
+                server.listen(path, () => {
+                    resolve(null);
                 });
             }
-        });
+        }));
         if (isWin32) {
             yield setPort(pid, server.address().port);
         }

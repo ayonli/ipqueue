@@ -72,7 +72,7 @@ export async function createServer(pid: number, timeout = 5000) {
         });
     });
 
-    await new Promise((resolve, reject) => {
+    await new Promise(async (resolve, reject) => {
         server.once("error", (err) => {
             server.close();
             server.unref();
@@ -93,10 +93,14 @@ export async function createServer(pid: number, timeout = 5000) {
             });
         } else {
             // on Uinx, bind to a domain socket
-            getSocketAddr(pid).then(path => {
-                server.listen(path, () => {
-                    resolve(null);
-                });
+            let path = <string>await getSocketAddr(pid);
+
+            if (await fs.pathExists(path)) {
+                await fs.unlink(path);
+            }
+
+            server.listen(path, () => {
+                resolve(null);
             });
         }
     });
