@@ -102,9 +102,11 @@ function setPort(pid, port) {
 }
 function getSocketAddr(pid) {
     return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        let file = os.tmpdir() + "/.cp-queue/" + pid;
-        if (!isWin32)
+        let dir = os.tmpdir() + "/.cp-queue", file = dir + "/" + pid;
+        if (!isWin32) {
+            yield fs.ensureDir(dir);
             return file;
+        }
         try {
             let data = yield fs.readFile(file, "utf8");
             return parseInt(data) || 0;

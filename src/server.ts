@@ -85,16 +85,16 @@ export async function createServer(pid: number, timeout = 5000) {
                 resolve(null);
             }
         });
-        
+
         if (isWin32) {
-            // in Windows, bind a random port
+            // on Windows, bind a random port
             server.listen(() => {
                 resolve(null);
             });
         } else {
-            // in Uinx, bind to a domain socket
+            // on Uinx, bind to a domain socket
             getSocketAddr(pid).then(path => {
-                server.listen(path , () => {
+                server.listen(path, () => {
                     resolve(null);
                 });
             });
@@ -117,9 +117,13 @@ async function setPort(pid: number, port: number) {
 }
 
 export async function getSocketAddr(pid: number): Promise<string | number> {
-    let file = os.tmpdir() + "/.cp-queue/" + pid;
+    let dir = os.tmpdir() + "/.cp-queue",
+        file = dir + "/" + pid;
 
-    if (!isWin32) return file;
+    if (!isWin32) {
+        await fs.ensureDir(dir);
+        return file;
+    }
 
     try {
         let data = await fs.readFile(file, "utf8");
