@@ -146,7 +146,7 @@ implement a cross-process queue server, I'm here to share my idea.
 
 The secret is quite simple, but yet somehow not well-known. The main idea is 
 shipping a socket server in one of the sub-processes. This package uses 
-[`find-process`](https://npmjs.com/package/find-process) to find out all running
+[find-process](https://github.com/yibn2008/find-process) to find out all running
 processes that match the `process.mainModule.filename`, which are considered the
 sub-processes forked or spawned by the main NodeJS process, and returns the 
 first matched process `pid` for usage to ship the server. All sub-processes will 
@@ -154,13 +154,13 @@ first matched process `pid` for usage to ship the server. All sub-processes will
 of the queue, like the current running task id, etc.
 
 When a task is pushed to the queue, it will send a request contains a unique 
-task id (I use [uuid](https://npmjs.com/package/uuid)) to the server to ask 
-for a lock. The server will check if there is undone work, if a previous task is
-not finished (not released), the new task will be put in a queue (actually an 
-array). When a task finishes and send a request to the server says release, the 
-server will remove the finished task from the queue, and starts the next task. 
-By repeatedly running this procedure, the queue will work as expected until you 
-exit the process.
+task id (I prefer [uuid](https://github.com/kelektiv/node-uuid)) to the server 
+to ask for a lock. The server will check if there is undone work, if a previous 
+task is not finished (not released), the new task will be put in a queue 
+(actually an array). When a task finishes and send a request to the server says 
+release, the server will remove the finished task from the queue, and starts the
+next task. By repeatedly running this procedure, the queue will work as expected
+until you exit the process.
 
 Of course more situation should be considered, e.g. the queue server process 
 exits unexpected, other processes should listen the event when connection lost,
