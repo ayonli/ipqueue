@@ -6,7 +6,11 @@ var os = require("os");
 var fs = require("fs-extra");
 var first = require("lodash/first");
 var transfer_1 = require("./transfer");
-var Queues = {};
+var Queue = {
+    current: void 0,
+    tasks: [],
+    timmer: null
+};
 function createServer(pid, timeout) {
     if (timeout === void 0) { timeout = 5000; }
     return tslib_1.__awaiter(this, void 0, void 0, function () {
@@ -15,36 +19,31 @@ function createServer(pid, timeout) {
             switch (_a.label) {
                 case 0:
                     server = net.createServer(function (socket) {
-                        var port = server.address().port;
                         socket.on("data", function (buf) {
                             for (var _i = 0, _a = transfer_1.receive(buf); _i < _a.length; _i++) {
                                 var _b = _a[_i], event = _b[0], id = _b[1], extra = _b[2];
                                 socket.emit(event, id, extra);
                             }
                         }).on("acquire", function (id) {
-                            var queue = Queues[port];
-                            if (!queue)
-                                queue = Queues[port] = { current: void 0, tasks: [] };
-                            if (!queue.tasks.length) {
-                                queue.current = id;
+                            if (!Queue.tasks.length) {
+                                Queue.current = id;
                                 !socket.destroyed && socket.write(transfer_1.send("acquired", id), function () {
-                                    queue.timmer = setTimeout(function () {
+                                    Queue.timmer = setTimeout(function () {
                                         socket.emit("release");
                                     }, timeout);
                                 });
                             }
                             if (!socket.destroyed)
-                                queue.tasks.push({ id: id, socket: socket });
+                                Queue.tasks.push({ id: id, socket: socket });
                         }).on("release", function () {
-                            var queue = Queues[port];
-                            queue.tasks.shift();
-                            clearTimeout(queue.timmer);
-                            var item = first(queue.tasks);
+                            Queue.tasks.shift();
+                            clearTimeout(Queue.timmer);
+                            var item = first(Queue.tasks);
                             if (item) {
-                                queue.current = item.id;
+                                Queue.current = item.id;
                                 if (!item.socket.destroyed) {
                                     item.socket.write(transfer_1.send("acquired", item.id), function () {
-                                        queue.timmer = setTimeout(function () {
+                                        Queue.timmer = setTimeout(function () {
                                             item.socket.emit("release");
                                         }, timeout);
                                     });
@@ -56,7 +55,7 @@ function createServer(pid, timeout) {
                         }).on("closesServer", function () {
                             server.close();
                         }).on("getLength", function (id) {
-                            var length = Queues[port].tasks.length;
+                            var length = Queue.tasks.length;
                             !socket.destroyed && socket.write(transfer_1.send("gotLength", id, length && length - 1));
                         }).on("error", function (err) {
                             if (err.message.indexOf("socket has been ended") >= 0) {

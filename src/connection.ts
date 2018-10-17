@@ -4,6 +4,7 @@ import findProcess = require("find-process");
 import startsWith = require("lodash/startsWith");
 import endsWith = require("lodash/endsWith");
 import includes = require("lodash/includes");
+import trimStart = require("lodash/trimStart");
 import { createServer, getPort } from './server';
 
 /** Entry script filename */
@@ -13,19 +14,18 @@ script = endsWith(script, ".js") ? script.slice(0, -3) : script;
 script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
 
 async function getHostPid() {
-    let processes = await findProcess("name", "node"),
-        pids: number[] = [];
+    let processes = await findProcess("name", "node");
 
     for (let item of processes) {
         let pid = parseInt(item.pid),
-            cmd = item.cmd.replace(/"/g, "");
+            cmd = trimStart(item.cmd, '"');
 
         if (startsWith(cmd, process.execPath) && includes(cmd, script)) {
-            pids.push(pid);
+            return pid;
         }
     }
 
-    return pids.length ? pids[0] : process.pid;
+    return process.pid;
 }
 
 function tryConnect(port: number): Promise<net.Socket> {
@@ -61,7 +61,7 @@ function retryConnect(resolve, reject, timeout: number, pid: number) {
             } else if (retries === maxRetries) {
                 clearInterval(timer);
                 let err = new Error("failed to get connection after "
-                    + Math.round(timeout / 1000) + " seconds of timeout");
+                    + Math.round(timeout / 1000) + " seconds timeout");
                 reject(err);
             }
         }, 50);

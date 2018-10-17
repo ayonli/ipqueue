@@ -37,5 +37,8 @@
     "@types/lodash": "^4.14.117",
     "@types/uuid": "^3.4.4",
     "source-map-support": "^0.5.9"
+  },
+  "engines": {
+    "node": ">=6.0"
   }
 }

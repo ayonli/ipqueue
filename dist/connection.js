@@ -7,26 +7,27 @@ var findProcess = require("find-process");
 var startsWith = require("lodash/startsWith");
 var endsWith = require("lodash/endsWith");
 var includes = require("lodash/includes");
+var trimStart = require("lodash/trimStart");
 var server_1 = require("./server");
 var script = process.mainModule.filename;
 script = endsWith(script, ".js") ? script.slice(0, -3) : script;
 script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
 function getHostPid() {
     return tslib_1.__awaiter(this, void 0, void 0, function () {
-        var processes, pids, _i, processes_1, item, pid, cmd;
+        var processes, _i, processes_1, item, pid, cmd;
         return tslib_1.__generator(this, function (_a) {
             switch (_a.label) {
                 case 0: return [4, findProcess("name", "node")];
                 case 1:
-                    processes = _a.sent(), pids = [];
+                    processes = _a.sent();
                     for (_i = 0, processes_1 = processes; _i < processes_1.length; _i++) {
                         item = processes_1[_i];
-                        pid = parseInt(item.pid), cmd = item.cmd.replace(/"/g, "");
+                        pid = parseInt(item.pid), cmd = trimStart(item.cmd, '"');
                         if (startsWith(cmd, process.execPath) && includes(cmd, script)) {
-                            pids.push(pid);
+                            return [2, pid];
                         }
                     }
-                    return [2, pids.length ? pids[0] : process.pid];
+                    return [2, process.pid];
             }
         });
     });
@@ -66,7 +67,7 @@ function retryConnect(resolve, reject, timeout, pid) {
                     else if (retries === maxRetries) {
                         clearInterval(timer);
                         err = new Error("failed to get connection after "
-                            + Math.round(timeout / 1000) + " seconds of timeout");
+                            + Math.round(timeout / 1000) + " seconds timeout");
                         reject(err);
                     }
                     return [2];
