@@ -14,6 +14,7 @@ var CPQueue;
     class Client {
         constructor() {
             this.tasks = {};
+            this.waitingMessages = [];
         }
         get connected() {
             return !!this.connection && !this.connection.destroyed;
@@ -41,8 +42,8 @@ var CPQueue;
                         try {
                             if (Object.keys(this.tasks).length) {
                                 yield this.connect(this.timeout);
-                                if (this.lastMsg)
-                                    this.send(this.lastMsg[0], this.lastMsg[1]);
+                                if (this.lastMessage)
+                                    this.send(this.lastMessage[0], this.lastMessage[1]);
                             }
                         }
                         catch (err) {
@@ -59,6 +60,12 @@ var CPQueue;
                             throw err;
                     }
                 }));
+                if (this.waitingMessages.length) {
+                    let item;
+                    while (item = this.waitingMessages.shift()) {
+                        this.send(item[0], item[1]);
+                    }
+                }
                 return this;
             });
             if (handler) {
@@ -86,12 +93,6 @@ var CPQueue;
             return this;
         }
         push(task) {
-            if (!this.connection) {
-                throw new Error("cannot push task before the queue has connected");
-            }
-            else if (this.connection.destroyed) {
-                throw new Error("cannot push task after the queue has disconnected");
-            }
             let id = uuid(), next = () => {
                 this.send("release", id);
             };
@@ -131,10 +132,15 @@ var CPQueue;
             });
         }
         send(event, id) {
-            this.lastMsg = [event, id];
-            this.connection.write(transfer_1.send(event, id), () => {
-                this.lastMsg = null;
-            });
+            if (!this.connected) {
+                this.waitingMessages.push([event, id]);
+            }
+            else {
+                this.lastMessage = [event, id];
+                this.connection.write(transfer_1.send(event, id), () => {
+                    this.lastMessage = null;
+                });
+            }
         }
     }
     CPQueue.Client = Client;

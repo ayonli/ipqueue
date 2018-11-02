@@ -23,7 +23,8 @@ namespace CPQueue {
     export class Client {
         private connection: net.Socket;
         private tasks: { [id: string]: EventEmitter } = {};
-        private lastMsg: [string, string];
+        private waitingMessages: [string, string][] = [];
+        private lastMessage: [string, string];
         private timeout: number;
         private errorHandler: (err: Error) => void;
 
@@ -70,8 +71,8 @@ namespace CPQueue {
                         try {
                             if (Object.keys(this.tasks).length) {
                                 await this.connect(this.timeout);
-                                if (this.lastMsg)
-                                    this.send(this.lastMsg[0], this.lastMsg[1]);
+                                if (this.lastMessage)
+                                    this.send(this.lastMessage[0], this.lastMessage[1]);
                             }
                         } catch (err) {
                             if (this.errorHandler)
@@ -86,6 +87,13 @@ namespace CPQueue {
                             throw err;
                     }
                 });
+
+                if (this.waitingMessages.length) {
+                    let item: [string, string];
+                    while (item = this.waitingMessages.shift()) {
+                        this.send(item[0], item[1]);
+                    }
+                }
 
                 return this;
             };
@@ -129,12 +137,6 @@ namespace CPQueue {
          * acquired, run the task automatically.
          */
         push(task: (next: () => void) => void) {
-            if (!this.connection) {
-                throw new Error("cannot push task before the queue has connected");
-            } else if (this.connection.destroyed) {
-                throw new Error("cannot push task after the queue has disconnected");
-            }
-
             let id = uuid(),
                 next = () => {
                     this.send("release", id);
@@ -181,10 +183,14 @@ namespace CPQueue {
         }
 
         private send(event: string, id?: string) {
-            this.lastMsg = [event, id];
-            this.connection.write(send(event, id), () => {
-                this.lastMsg = null;
-            });
+            if (!this.connected) {
+                this.waitingMessages.push([event, id]);
+            } else {
+                this.lastMessage = [event, id];
+                this.connection.write(send(event, id), () => {
+                    this.lastMessage = null;
+                });
+            }
         }
     }
 }
