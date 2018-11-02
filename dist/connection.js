@@ -61,12 +61,20 @@ function getConnection(timeout = 5000, pid) {
         let conn;
         pid = pid || (yield getHostPid());
         if (process.connected) {
-            conn = yield tryConnect(yield server_1.getSocketAddr(pid));
+            let port = yield server_1.getSocketAddr(pid);
+            conn = yield tryConnect(port);
             if (!conn) {
                 if (pid === process.pid) {
-                    let server = yield server_1.createServer(pid, timeout);
-                    if (server) {
-                        conn = yield tryConnect(server.address().port);
+                    try {
+                        let server = yield server_1.createServer(pid, timeout);
+                        if (server)
+                            conn = yield tryConnect(server.address()["port"]);
+                    }
+                    catch (err) {
+                        if (err["code"] == "EADDRINUSE")
+                            conn = yield tryConnect(port);
+                        else
+                            throw err;
                     }
                 }
             }
@@ -75,7 +83,7 @@ function getConnection(timeout = 5000, pid) {
         else {
             let server = yield server_1.createServer(pid, timeout);
             if (server)
-                conn = yield tryConnect(server.address().port);
+                conn = yield tryConnect(server.address()["port"]);
             conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         }
     }));

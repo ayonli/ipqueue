@@ -72,13 +72,20 @@ export function getConnection(timeout = 5000, pid?: number) {
         pid = pid || await getHostPid();
 
         if (process.connected) { // child process
-            conn = await tryConnect(await getSocketAddr(pid));
+            let port = await getSocketAddr(pid);
+            conn = await tryConnect(port);
 
             if (!conn) {
                 if (pid === process.pid) {
-                    let server = await createServer(pid, timeout);
-                    if (server) {
-                        conn = await tryConnect((<net.AddressInfo>server.address()).port);
+                    try {
+                        let server = await createServer(pid, timeout);
+                        if (server)
+                            conn = await tryConnect(server.address()["port"]);
+                    } catch (err) {
+                        if (err["code"] == "EADDRINUSE")
+                            conn = await tryConnect(port);
+                        else
+                            throw err;
                     }
                 }
             }
@@ -87,7 +94,7 @@ export function getConnection(timeout = 5000, pid?: number) {
         } else {
             let server = await createServer(pid, timeout);
             if (server)
-                conn = await tryConnect((<net.AddressInfo>server.address()).port);
+                conn = await tryConnect(server.address()["port"]);
 
             conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         }

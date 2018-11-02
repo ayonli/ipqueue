@@ -33,14 +33,14 @@ if (cluster.isMaster) {
             } else {
                 logs.push(msg);
 
-                if (logs.length == 8) {
+                if (logs.length == 16) {
                     let pids = workers.map(worker => worker.process.pid),
                         _logs = [],
                         __logs = [];
 
                     for (let pid of pids) {
-                        _logs.push(pid + ": task A");
-                        __logs.push(pid + ": task B");
+                        _logs.push(pid + ": task A", pid + ": task A");
+                        __logs.push(pid + ": task B", pid + ": task B");
                     }
 
                     _logs = _logs.concat(__logs);
@@ -59,4 +59,5 @@ if (cluster.isMaster) {
     }
 } else {
     require("./task");
+    require("./task-immediate");
 }
