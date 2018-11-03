@@ -1,10 +1,11 @@
 import * as net from "net";
 import * as path from "path";
-import findProcess = require("find-process");
 import startsWith = require("lodash/startsWith");
 import endsWith = require("lodash/endsWith");
 import trimStart = require("lodash/trimStart");
 import { createServer, getSocketAddr } from './server';
+const findProcess = require("find-process");
+
 
 /** Entry script filename */
 let script = process.mainModule.filename;
@@ -13,14 +14,13 @@ script = endsWith(script, ".js") ? script.slice(0, -3) : script;
 script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
 
 async function getHostPid() {
-    let processes = await findProcess("name", "node");
+    let processes = await findProcess("name", "node", true);
 
     for (let item of processes) {
-        let pid = parseInt(item.pid),
-            cmd = trimStart(item.cmd, '"');
+        let cmd = trimStart(item.cmd, '"');
 
         if (startsWith(cmd, process.execPath) && cmd.includes(script)) {
-            return pid;
+            return item.pid;
         }
     }
 
@@ -66,36 +66,38 @@ function retryConnect(resolve, reject, timeout: number, pid: number) {
         }, 50);
 }
 
+async function tryServe(pid: number, addr: string | number, timeout: number): Promise<net.Socket> {
+    try {
+        let server = await createServer(pid, timeout);
+        if (server) {
+            let _addr = server.address();
+            addr = typeof _addr == "object" ? _addr.port : _addr;
+            return tryConnect(addr);
+        }
+    } catch (err) {
+        if (err["code"] == "EADDRINUSE")
+            return tryConnect(addr);
+        else
+            throw err;
+    }
+}
+
 export function getConnection(timeout = 5000, pid?: number) {
     return new Promise(async (resolve: (value: net.Socket) => void, reject) => {
-        let conn: net.Socket;
         pid = pid || await getHostPid();
 
-        if (process.connected) { // child process
-            let port = await getSocketAddr(pid);
-            conn = await tryConnect(port);
+        let addr = await getSocketAddr(pid),
+            conn: net.Socket;
 
-            if (!conn) {
-                if (pid === process.pid) {
-                    try {
-                        let server = await createServer(pid, timeout);
-                        if (server)
-                            conn = await tryConnect(server.address()["port"]);
-                    } catch (err) {
-                        if (err["code"] == "EADDRINUSE")
-                            conn = await tryConnect(port);
-                        else
-                            throw err;
-                    }
-                }
-            }
+        if (process.connected) { // child process
+            conn = await tryConnect(addr);
+
+            if (!conn && pid === process.pid)
+                conn = await tryServe(pid, addr, timeout);
 
             conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         } else {
-            let server = await createServer(pid, timeout);
-            if (server)
-                conn = await tryConnect(server.address()["port"]);
-
+            conn = await tryServe(pid, addr, timeout);
             conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         }
     });

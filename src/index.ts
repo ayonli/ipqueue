@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import uuid = require("uuid/v4");
 import { getConnection } from "./connection";
 import { send, receive } from './transfer';
+import { isSocketResetError } from './server';
 
 namespace CPQueue {
     /**
@@ -64,8 +65,7 @@ namespace CPQueue {
                         this.tasks[id].emit(event, id, extra);
                     }
                 }).on("error", async (err) => {
-                    if (err["code"] == "ECONNREFUSED"
-                        || err.message.indexOf("socket has been ended") >= 0) {
+                    if (err["code"] == "ECONNREFUSED" || isSocketResetError(err)) {
                         // try to re-connect if the connection has lost and 
                         // re-send the message.
                         try {

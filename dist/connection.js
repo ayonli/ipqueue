@@ -3,21 +3,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
 const net = require("net");
 const path = require("path");
-const findProcess = require("find-process");
 const startsWith = require("lodash/startsWith");
 const endsWith = require("lodash/endsWith");
 const trimStart = require("lodash/trimStart");
 const server_1 = require("./server");
+const findProcess = require("find-process");
 let script = process.mainModule.filename;
 script = endsWith(script, ".js") ? script.slice(0, -3) : script;
 script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
 function getHostPid() {
     return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        let processes = yield findProcess("name", "node");
+        let processes = yield findProcess("name", "node", true);
         for (let item of processes) {
-            let pid = parseInt(item.pid), cmd = trimStart(item.cmd, '"');
+            let cmd = trimStart(item.cmd, '"');
             if (startsWith(cmd, process.execPath) && cmd.includes(script)) {
-                return pid;
+                return item.pid;
             }
         }
         return process.pid;
@@ -56,34 +56,36 @@ function retryConnect(resolve, reject, timeout, pid) {
         }
     }), 50);
 }
+function tryServe(pid, addr, timeout) {
+    return tslib_1.__awaiter(this, void 0, void 0, function* () {
+        try {
+            let server = yield server_1.createServer(pid, timeout);
+            if (server) {
+                let _addr = server.address();
+                addr = typeof _addr == "object" ? _addr.port : _addr;
+                return tryConnect(addr);
+            }
+        }
+        catch (err) {
+            if (err["code"] == "EADDRINUSE")
+                return tryConnect(addr);
+            else
+                throw err;
+        }
+    });
+}
 function getConnection(timeout = 5000, pid) {
     return new Promise((resolve, reject) => tslib_1.__awaiter(this, void 0, void 0, function* () {
-        let conn;
         pid = pid || (yield getHostPid());
+        let addr = yield server_1.getSocketAddr(pid), conn;
         if (process.connected) {
-            let port = yield server_1.getSocketAddr(pid);
-            conn = yield tryConnect(port);
-            if (!conn) {
-                if (pid === process.pid) {
-                    try {
-                        let server = yield server_1.createServer(pid, timeout);
-                        if (server)
-                            conn = yield tryConnect(server.address()["port"]);
-                    }
-                    catch (err) {
-                        if (err["code"] == "EADDRINUSE")
-                            conn = yield tryConnect(port);
-                        else
-                            throw err;
-                    }
-                }
-            }
+            conn = yield tryConnect(addr);
+            if (!conn && pid === process.pid)
+                conn = yield tryServe(pid, addr, timeout);
             conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         }
         else {
-            let server = yield server_1.createServer(pid, timeout);
-            if (server)
-                conn = yield tryConnect(server.address()["port"]);
+            conn = yield tryServe(pid, addr, timeout);
             conn ? resolve(conn) : retryConnect(resolve, reject, timeout, pid);
         }
     }));

@@ -53,7 +53,7 @@ function createServer(pid, timeout = 5000) {
                 let length = Queue.tasks.length;
                 !socket.destroyed && socket.write(transfer_1.send("gotLength", id, length && length - 1));
             }).on("error", (err) => {
-                if (err.message.indexOf("socket has been ended") >= 0) {
+                if (isSocketResetError(err)) {
                     try {
                         socket.destroy();
                         socket.unref();
@@ -81,7 +81,10 @@ function createServer(pid, timeout = 5000) {
             else {
                 let path = yield getSocketAddr(pid);
                 if (yield fs.pathExists(path)) {
-                    yield fs.unlink(path);
+                    try {
+                        yield fs.unlink(path);
+                    }
+                    catch (e) { }
                 }
                 server.listen(path, () => {
                     resolve(null);
@@ -119,4 +122,10 @@ function getSocketAddr(pid) {
     });
 }
 exports.getSocketAddr = getSocketAddr;
+function isSocketResetError(err) {
+    return err instanceof Error
+        && (err["code"] == "ECONNRESET"
+            || /socket.*(ended|closed)/.test(err.message));
+}
+exports.isSocketResetError = isSocketResetError;
 //# sourceMappingURL=server.js.map

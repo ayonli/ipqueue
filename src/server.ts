@@ -63,7 +63,7 @@ export async function createServer(pid: number, timeout = 5000) {
             let length = Queue.tasks.length;
             !socket.destroyed && socket.write(send("gotLength", id, length && length - 1));
         }).on("error", (err) => {
-            if (err.message.indexOf("socket has been ended") >= 0) {
+            if (isSocketResetError(err)) {
                 try {
                     socket.destroy();
                     socket.unref();
@@ -96,7 +96,13 @@ export async function createServer(pid: number, timeout = 5000) {
             let path = <string>await getSocketAddr(pid);
 
             if (await fs.pathExists(path)) {
-                await fs.unlink(path);
+                // When all the connection request run asynchronously, there is 
+                // no guarantee that this procedure will run as expected since 
+                // anther process may delete the file before the current 
+                // process do. So must put the 'unlink' operation in a 
+                // try...catch block, and when fail, it will not cause the 
+                // process to terminate.
+                try { await fs.unlink(path); } catch (e) { }
             }
 
             server.listen(path, () => {
@@ -135,4 +141,10 @@ export async function getSocketAddr(pid: number): Promise<string | number> {
     } catch (err) {
         return 0;
     }
+}
+
+export function isSocketResetError(err) {
+    return err instanceof Error
+        && (err["code"] == "ECONNRESET"
+            || /socket.*(ended|closed)/.test(err.message));
 }

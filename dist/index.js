@@ -4,6 +4,7 @@ const events_1 = require("events");
 const uuid = require("uuid/v4");
 const connection_1 = require("./connection");
 const transfer_1 = require("./transfer");
+const server_1 = require("./server");
 var CPQueue;
 (function (CPQueue) {
     function connect(...args) {
@@ -37,8 +38,7 @@ var CPQueue;
                         this.tasks[id].emit(event, id, extra);
                     }
                 }).on("error", (err) => tslib_1.__awaiter(this, void 0, void 0, function* () {
-                    if (err["code"] == "ECONNREFUSED"
-                        || err.message.indexOf("socket has been ended") >= 0) {
+                    if (err["code"] == "ECONNREFUSED" || server_1.isSocketResetError(err)) {
                         try {
                             if (Object.keys(this.tasks).length) {
                                 yield this.connect(this.timeout);

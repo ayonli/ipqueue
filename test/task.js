@@ -7,7 +7,7 @@ var queue;
 CPQueue.connect().then((q) => {
     queue = q;
     process.send("connected");
-});
+}).catch(err => console.log(err));
 
 process.on("message", msg => {
     if (Array.isArray(msg) && msg[0] === "ready") {
