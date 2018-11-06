@@ -2,27 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
 const net = require("net");
-const path = require("path");
-const startsWith = require("lodash/startsWith");
-const endsWith = require("lodash/endsWith");
-const trimStart = require("lodash/trimStart");
 const server_1 = require("./server");
-const findProcess = require("find-process");
-let script = process.mainModule.filename;
-script = endsWith(script, ".js") ? script.slice(0, -3) : script;
-script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
-function getHostPid() {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        let processes = yield findProcess("name", "node", true);
-        for (let item of processes) {
-            let cmd = trimStart(item.cmd, '"');
-            if (startsWith(cmd, process.execPath) && cmd.includes(script)) {
-                return item.pid;
-            }
-        }
-        return process.pid;
-    });
-}
+const first_officer_1 = require("first-officer");
 function tryConnect(addr) {
     return new Promise((resolve, reject) => {
         if (!addr)
@@ -76,7 +57,7 @@ function tryServe(pid, addr, timeout) {
 }
 function getConnection(timeout = 5000, pid) {
     return new Promise((resolve, reject) => tslib_1.__awaiter(this, void 0, void 0, function* () {
-        pid = pid || (yield getHostPid());
+        pid = pid || (yield first_officer_1.getPid());
         let addr = yield server_1.getSocketAddr(pid), conn;
         if (process.connected) {
             conn = yield tryConnect(addr);

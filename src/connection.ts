@@ -1,31 +1,6 @@
 import * as net from "net";
-import * as path from "path";
-import startsWith = require("lodash/startsWith");
-import endsWith = require("lodash/endsWith");
-import trimStart = require("lodash/trimStart");
 import { createServer, getSocketAddr } from './server';
-const findProcess = require("find-process");
-
-
-/** Entry script filename */
-let script = process.mainModule.filename;
-
-script = endsWith(script, ".js") ? script.slice(0, -3) : script;
-script = endsWith(script, path.sep + "index") ? script.slice(0, -6) : script;
-
-async function getHostPid() {
-    let processes = await findProcess("name", "node", true);
-
-    for (let item of processes) {
-        let cmd = trimStart(item.cmd, '"');
-
-        if (startsWith(cmd, process.execPath) && cmd.includes(script)) {
-            return item.pid;
-        }
-    }
-
-    return process.pid;
-}
+import { getPid as getHostPid } from "first-officer";
 
 function tryConnect(addr: string | number): Promise<net.Socket> {
     return new Promise((resolve: (value: net.Socket) => void, reject) => {

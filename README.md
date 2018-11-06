@@ -146,12 +146,10 @@ implement a cross-process queue server, I'm here to share my idea.
 
 The secret is quite simple, but yet somehow not well-known. The main idea is 
 shipping a socket server in one of the sub-processes. This package uses 
-[find-process](https://github.com/yibn2008/find-process) to find out all running
-processes that match the `process.mainModule.filename`, which are considered the
-sub-processes forked or spawned by the main NodeJS process, and returns the 
-first matched process `pid` for usage to ship the server. All sub-processes will 
-(even master process can) connect to this server, the server will save the state
-of the queue, like the current running task id, etc.
+[first-officer](https://github.com/hyurl/first-officer) to find out the proper
+process that match `process.mainModule.filename` to ship the server. All 
+sub-processes will (even master process can) connect to this server, the server 
+will save the state of the queue, like the current running task id, etc.
 
 When a task is pushed to the queue, it will send a request contains a unique 
 task id (I prefer [uuid](https://github.com/kelektiv/node-uuid)) to the server 
