@@ -1,10 +1,10 @@
-# CP-Queue
+# IPQueue
 
-**A cross-platform, cross-process asynchronous queue implementation for NodeJS.**
+**A inter-process task queue implementation for NodeJS.**
 
 ## Purpose
 
-This package is meant to achieve sequential operations cross processes in 
+This package is meant to achieve sequential operations across processes in 
 multi-processing scenario.
 
 ### An Example Of Why
@@ -47,7 +47,7 @@ than installing **fs-ext** or **os-lock**.
 
 ### A Better Choice
 
-With CP-Queue, it is pure JavaScript, based on IPC channel 
+With IPQueue, it is pure JavaScript, based on IPC channel 
 ([open-channel](https://github.com/hyurl/open-channel)), do not need any 
 extra effort to install and run. It's safe, and much handy than other packages, 
 it not only provides you the ability to lock file operations, but any operations
@@ -57,9 +57,9 @@ you want to handle in order.
 
 ```javascript
 // task.js
-const CPQueue = require("cp-queue");
+import connectQueue from "ipqueue";
 
-var queue = CPQueue.connect();
+var queue = connectQueue();
 
 // push a task into the queue and waiting to run. 
 queue.push((next) => {
@@ -98,42 +98,38 @@ if (cluster.isMaster) {
 ## API
 
 There are very few API in this package, it's designed to be as simple as 
-possible, but brings the most powerful queue-lock function cross processes into 
-NodeJS.
+possible, but brings the most powerful task queue functionality across processes
+into NodeJS.
 
-- `CPQueue.connect(name: string, timeout?: number): CPQueue.Client>`
-    Opens connection to a cross-process queue server and returns a client 
-    instance.
+- `connectQueue(name: string, timeout?: number): Queue`
+    Opens connection to the queue server and returns a client instance.
     - `name` A unique name to distinguish potential queues on the same machine.
     - `timeout` Sets both connection timeout and max lock time, meaning if you 
         don't call `next()` in a task (or the process fails to call it, i.e. 
-        exits unexpected), the next task will be run anyway when timeout. The 
+        exited unexpected), the next task will be run anyway when timeout. The 
         default value is `5000` ms.
 
-- `queue.connected: boolean` Returns `true` if the queue is 
-    connected to the server, `false` otherwise.
+- `queue.connected: boolean` Returns `true` if the queue is connected to the 
+    server, `false` the otherwise.
 - `queue.disconnect(): void` Closes connection to the queue server.
-- `queue.push(task: (next: () => void) => void): this` Pushes
-    a task into the queue, the program will send a request to the server 
-    acquiring for a lock, and wait until the lock has been acquired, run the 
-    task automatically.
+- `queue.push(task: (next: () => void) => void): this` Pushes a task into the 
+    queue. The program will send a request to the server acquiring for a lock, 
+    and wait until the lock has been acquired, run the task automatically.
     - `next` Once the job is done, this callback function should be and must be 
         called.
-- `queue.getLength(): Promise<number>` Gets the real queue length from the 
-    server.
+- `queue.getLength(): Promise<number>` Gets the length of remaining tasks in the
+    queue.
 - `queue.onError(handler: (err: Error) => void): this` Binds an error handler to
     catch errors whenever occurred.
 
-## What Can't CP-Queue Do?
+## What Can't IPQueue Do?
 
-- IPChannel requires all processes run with the same entry file, it won't work
+- IPQueue requires all processes run with the same entry file, it won't work
     with multi-entry applications.
-- IPChannel only supports communications on the same machine, it's not designed 
-    for network communications with remote services.
 
 ## Tip
 
-Powered by [open-channel](https://github.com/hyurl/open-channel), CP-Queue can 
+Powered by [open-channel](https://github.com/hyurl/open-channel), IPQueue can 
 work under [PM2](https://pm2.io) supervision even doesn't have access to the 
 master process.
 

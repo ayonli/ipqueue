@@ -1,9 +1,9 @@
 "use strict";
 
-const CPQueue = require("..");
+const connectQueue = require("..").default;
 
 // It's not neccessary to wait until connection established.
-var queue = CPQueue.connect();
+var queue = connectQueue();
 process.send("connected");
 
 process.on("message", msg => {

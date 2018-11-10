@@ -1,7 +1,7 @@
 {
   "name": "ipqueue",
-  "version": "0.1.0",
-  "description": "A cross-platform, cross-process asynchronous queue implementation for NodeJS.",
+  "version": "0.1.1",
+  "description": "A inter-process task queue implementation for NodeJS.",
   "main": "dist/index.js",
   "types": "src/index.ts",
   "scripts": {

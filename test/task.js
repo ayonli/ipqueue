@@ -1,8 +1,8 @@
 "use strict";
 
-const CPQueue = require("..");
+const connectQueue = require("..").default;
 
-var queue = CPQueue.connect();
+var queue = connectQueue();
 
 queue.socket.on("connect", () => {
     process.send("connected");
