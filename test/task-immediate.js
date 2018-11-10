@@ -3,7 +3,7 @@
 const CPQueue = require("..");
 
 // It's not neccessary to wait until connection established.
-var queue = CPQueue.connect(() => { });
+var queue = CPQueue.connect();
 process.send("connected");
 
 process.on("message", msg => {

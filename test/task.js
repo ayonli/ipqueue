@@ -2,12 +2,11 @@
 
 const CPQueue = require("..");
 
-var queue;
+var queue = CPQueue.connect();
 
-CPQueue.connect().then((q) => {
-    queue = q;
+queue.socket.on("connect", () => {
     process.send("connected");
-}).catch(err => console.log(err));
+});
 
 process.on("message", msg => {
     if (Array.isArray(msg) && msg[0] === "ready") {

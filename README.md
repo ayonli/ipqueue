@@ -7,7 +7,7 @@
 This package is meant to achieve sequential operations cross processes in 
 multi-processing scenario.
 
-### An Example
+### An Example Of Why
 
 When you're programming that your code will run in several sub-processes, say, 
 in cluster mode, and you have to write data to a file, you will need to check if
@@ -47,15 +47,37 @@ than installing **fs-ext** or **os-lock**.
 
 ### A Better Choice
 
-With CP-Queue, it is pure JavaScript, based on IPC sockets, do not need any 
+With CP-Queue, it is pure JavaScript, based on IPC channel 
+([open-channel](https://github.com/hyurl/open-channel)), do not need any 
 extra effort to install and run. It's safe, and much handy than other packages, 
 it not only provides you the ability to lock file operations, but any operations
 you want to handle in order.
 
 ## How To Use?
 
+```javascript
+// task.js
+const CPQueue = require("cp-queue");
+
+var queue = CPQueue.connect();
+
+// push a task into the queue and waiting to run. 
+queue.push((next) => {
+    // TODO...
+    next(); // calling next to prepare running the next task.
+});
+
+// push another task
+queue.push((next) => {
+    // TODO...
+    next();
+});
+```
+
 In this example, I will use cluster to fork several child-processes, but using 
-cluster is optional, you can just use `child_process` module as you want.
+cluster is optional, you can just use `child_process` module as you want, or 
+even run them manually (must provide the absolute path of the script file, e.g.
+`node $(pwd)/task.js`).
 
 ```javascript
 // index.js
@@ -68,30 +90,9 @@ if (cluster.isMaster) {
     }
 } else {
     // There would be 8 task to run in all processes (2 for each process), and 
-    // they're all run in order.
+    // they're all run in order (but cannot guarantee the sequence).
     require("./task");
 }
-```
-
-```javascript
-// task.js
-const CPQueue = require("cp-queue");
-
-(async () => {
-    var queue = await CPQueue.connect();
-
-    // push a task into the queue and waiting to run. 
-    queue.push((next) => {
-        // TODO...
-        next(); // calling next to prepare running the next task.
-    });
-
-    // push another task
-    queue.push((next) => {
-        // ...
-        next();
-    });
-})();
 ```
 
 ## API
@@ -100,74 +101,42 @@ There are very few API in this package, it's designed to be as simple as
 possible, but brings the most powerful queue-lock function cross processes into 
 NodeJS.
 
-- `CPQueue.connect(timeout?: number): Promise<CPQueue.Client>`
-- `CPQueue.connect(handler: (err: Error) => void): CPQueue.Client`
-- `CPQueue.connect(timeout: number, handler: (err: Error) => void): CPQueue.Client`
+- `CPQueue.connect(name: string, timeout?: number): CPQueue.Client>`
     Opens connection to a cross-process queue server and returns a client 
-    instance. The server will be auto-started if it hasn't.
-    - `timeout` This parameter sets both connection timeout and max lock time, 
-        means if you don't call `next()` in a task (or the process fails to call
-        it, i.e. exits unexpected), the next task will be run anyway when 
-        timeout. The default value is `5000` ms.
+    instance.
+    - `name` A unique name to distinguish potential queues on the same machine.
+    - `timeout` Sets both connection timeout and max lock time, meaning if you 
+        don't call `next()` in a task (or the process fails to call it, i.e. 
+        exits unexpected), the next task will be run anyway when timeout. The 
+        default value is `5000` ms.
 
-- `CPQueue.Client.prototype.connected: boolean` Returns `true` if the queue is 
+- `queue.connected: boolean` Returns `true` if the queue is 
     connected to the server, `false` otherwise.
-- `CPQueue.Client.prototype.connect(timeout?: number): Promise<this>` Same as 
-    `CPQueue.connect()`. Use the later instead, it's more semantic.
-- `CPQueue.Client.prototype.disconnect(): void` Closes connection to the queue 
-    server. When the queue is disconnected, no more task should be pushed or a 
-    socket error will be thrown.
-- `CPQueue.Client.prototype.push(task: (next: () => void) => void): this` Pushes
-    a task into the queue, the program will send a request to the queue server 
-    for acquiring a lock, and wait until the lock has been acquired, run the 
+- `queue.disconnect(): void` Closes connection to the queue server.
+- `queue.push(task: (next: () => void) => void): this` Pushes
+    a task into the queue, the program will send a request to the server 
+    acquiring for a lock, and wait until the lock has been acquired, run the 
     task automatically.
-- `CPQueue.Client.prototype.getLength(): Promise<number>` Gets the real queue 
-    length in the queue server.
-- `CPQueue.Client.prototype.onError(handler: (err: Error) => void): this` Binds 
-    an error handler to run whenever the error occurred.
-- `CPQueue.Client.prototype.closeServer(): void` Closes the queue server. Most 
-    often you don't need to call this method, and it may not work well if there 
-    are any tasks left in any process, since a process will always try to 
-    re-build the server if it finds connection lost.
+    - `next` Once the job is done, this callback function should be and must be 
+        called.
+- `queue.getLength(): Promise<number>` Gets the real queue length from the 
+    server.
+- `queue.onError(handler: (err: Error) => void): this` Binds an error handler to
+    catch errors whenever occurred.
 
-### More About Queue Server
+## What Can't CP-Queue Do?
 
-When you calling `CPQueue.connect()`, this method will firstly try to connect to
-a queue server, if the server doesn't exist, it will create a new one. You don't 
-have to worry that the program will try to create the server several times since
-it may run in multiple processes. Well, it will not. This package itself has an 
-inner algorithm to decide when and which process should ship the queue server, 
-and other processes will just connect to it.
+- IPChannel requires all processes run with the same entry file, it won't work
+    with multi-entry applications.
+- IPChannel only supports communications on the same machine, it's not designed 
+    for network communications with remote services.
 
-## How It Works?
+## Tip
 
-For the people who wants to know the principle of the package or a way to 
-implement a cross-process queue server, I'm here to share my idea.
+Powered by [open-channel](https://github.com/hyurl/open-channel), CP-Queue can 
+work under [PM2](https://pm2.io) supervision even doesn't have access to the 
+master process.
 
-The secret is quite simple, but yet somehow not well-known. The main idea is 
-shipping a socket server in one of the sub-processes. This package uses 
-[first-officer](https://github.com/hyurl/first-officer) to find out the proper
-process that match `process.mainModule.filename` to ship the server. All 
-sub-processes will (even master process can) connect to this server, the server 
-will save the state of the queue, like the current running task id, etc.
+## License
 
-When a task is pushed to the queue, it will send a request contains a unique 
-task id (I prefer [uuid](https://github.com/kelektiv/node-uuid)) to the server 
-to ask for a lock. The server will check if there is undone work, if a previous 
-task is not finished (not released), the new task will be put in a queue 
-(actually an array). When a task finishes and send a request to the server says 
-release, the server will remove the finished task from the queue, and starts the
-next task. By repeatedly running this procedure, the queue will work as expected
-until you exit the process.
-
-Of course more situation should be considered, e.g. the queue server process 
-exits unexpected, other processes should listen the event when connection lost,
-and try to ship a new server immediately. Another situation is that a process 
-acquired the queue lock, and failed to release it, say the process exited before 
-releasing the lock, the server should set a timer to force release when timeout.
-
-**Why not ship the server in master process?** If you have full control of your 
-program that is ok to ship the server in the master, but, if you program is 
-running under the supervision of [PM2](https://github.com/Unitech/pm2), clearly 
-you have no control of the master process, so shipping the server in one of the 
-child-process is the best and safest way to keep your code running everywhere.
+This package is licensed under [MIT license](./LICENSE).

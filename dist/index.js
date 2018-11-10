@@ -1,95 +1,96 @@
 "use strict";
-const tslib_1 = require("tslib");
 const events_1 = require("events");
 const uuid = require("uuid/v4");
-const connection_1 = require("./connection");
+const first = require("lodash/first");
+const isSocketResetError = require("is-socket-reset-error");
+const open_channel_1 = require("open-channel");
 const transfer_1 = require("./transfer");
-const server_1 = require("./server");
 var CPQueue;
 (function (CPQueue) {
+    const Queue = {
+        current: void 0,
+        tasks: [],
+        timmer: null
+    };
     function connect(...args) {
-        let queue = new Client();
-        return queue.connect.apply(queue, args);
+        var name, timeout;
+        if (!args.length || typeof args[0] == "number") {
+            name = "cp-queue";
+            timeout = args[0] || 5000;
+        }
+        else {
+            name = args[0];
+            timeout = args[1] || 5000;
+        }
+        return new Client(name, timeout);
     }
     CPQueue.connect = connect;
     class Client {
-        constructor() {
+        constructor(name, timeout) {
+            this.name = name;
+            this.timeout = timeout;
             this.tasks = {};
-            this.waitingMessages = [];
+            this.channel = open_channel_1.openChannel(this.name, socket => {
+                socket.on("data", (buf) => {
+                    for (let [event, id, extra] of transfer_1.receive(buf)) {
+                        socket.emit(event, id, extra);
+                    }
+                }).on("acquire", (id) => {
+                    if (!Queue.tasks.length) {
+                        Queue.current = id;
+                        socket.write(transfer_1.send("acquired", id), () => {
+                            Queue.timmer = setTimeout(() => {
+                                socket.emit("release");
+                            }, this.timeout);
+                        });
+                    }
+                    if (!socket.destroyed)
+                        Queue.tasks.push({ id, socket });
+                }).on("release", () => {
+                    Queue.tasks.shift();
+                    clearTimeout(Queue.timmer);
+                    let item = first(Queue.tasks);
+                    if (item) {
+                        Queue.current = item.id;
+                        if (!item.socket.destroyed) {
+                            item.socket.write(transfer_1.send("acquired", item.id), () => {
+                                Queue.timmer = setTimeout(() => {
+                                    item.socket.emit("release");
+                                }, this.timeout);
+                            });
+                        }
+                        else {
+                            socket.emit("release");
+                        }
+                    }
+                }).on("getLength", (id) => {
+                    let length = Queue.tasks.length;
+                    socket.write(transfer_1.send("gotLength", id, length && length - 1));
+                }).on("error", (err) => {
+                    if (isSocketResetError(err)) {
+                        try {
+                            socket.destroy();
+                            socket.unref();
+                        }
+                        finally { }
+                    }
+                });
+            });
+            this.socket = this.channel.connect().on("data", buf => {
+                for (let [event, id, extra] of transfer_1.receive(buf)) {
+                    this.tasks[id].emit(event, id, extra);
+                }
+            });
         }
         get connected() {
-            return !!this.connection && !this.connection.destroyed;
-        }
-        connect() {
-            let handler;
-            if (typeof arguments[0] == "function") {
-                this.timeout = 5000;
-                handler = arguments[0];
-            }
-            else {
-                this.timeout = arguments[0] || 5000;
-                handler = arguments[1];
-            }
-            let createConnection = () => tslib_1.__awaiter(this, void 0, void 0, function* () {
-                this.disconnect();
-                this.connection = yield connection_1.getConnection(this.timeout);
-                this.connection.on("data", buf => {
-                    for (let [event, id, extra] of transfer_1.receive(buf)) {
-                        this.tasks[id].emit(event, id, extra);
-                    }
-                }).on("error", (err) => tslib_1.__awaiter(this, void 0, void 0, function* () {
-                    if (err["code"] == "ECONNREFUSED" || server_1.isSocketResetError(err)) {
-                        try {
-                            if (Object.keys(this.tasks).length) {
-                                yield this.connect(this.timeout);
-                                if (this.lastMessage)
-                                    this.send(this.lastMessage[0], this.lastMessage[1]);
-                            }
-                        }
-                        catch (err) {
-                            if (this.errorHandler)
-                                this.errorHandler(err);
-                            else
-                                throw err;
-                        }
-                    }
-                    else {
-                        if (this.errorHandler)
-                            this.errorHandler(err);
-                        else
-                            throw err;
-                    }
-                }));
-                if (this.waitingMessages.length) {
-                    let item;
-                    while (item = this.waitingMessages.shift()) {
-                        this.send(item[0], item[1]);
-                    }
-                }
-                return this;
-            });
-            if (handler) {
-                createConnection().then(() => {
-                    handler(null);
-                }).catch(err => {
-                    handler(err);
-                });
-                return this;
-            }
-            else {
-                return createConnection();
-            }
+            return this.channel.connect;
         }
         disconnect() {
-            this.connected && this.connection.destroy();
-        }
-        closeServer() {
-            this.send("closeServer");
+            this.socket.destroyed || this.socket.destroy();
         }
         onError(handler) {
             this.errorHandler = handler;
-            if (this.connection)
-                this.connection.on("error", handler);
+            this.socket.on("error", handler);
             return this;
         }
         push(task) {
@@ -132,15 +133,7 @@ var CPQueue;
             });
         }
         send(event, id) {
-            if (!this.connected) {
-                this.waitingMessages.push([event, id]);
-            }
-            else {
-                this.lastMessage = [event, id];
-                this.connection.write(transfer_1.send(event, id), () => {
-                    this.lastMessage = null;
-                });
-            }
+            return this.socket.write(transfer_1.send(event, id));
         }
     }
     CPQueue.Client = Client;
