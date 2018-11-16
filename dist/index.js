@@ -36,33 +36,13 @@ class Queue {
                     socket.emit(QueueEvents[code], id, extra);
                 }
             }).on(QueueEvents[0], (id) => {
-                if (!Tasks.queue.length) {
-                    Tasks.current = id;
-                    socket.write(transfer_1.send(QueueEvents.acquired, id), () => {
-                        Tasks.timer = setTimeout(() => {
-                            socket.emit(QueueEvents[2]);
-                        }, this.timeout);
-                    });
-                }
-                if (!socket.destroyed)
-                    Tasks.queue.push({ id, socket });
+                Tasks.queue.length || this.respond(socket, id, true);
+                socket.destroyed || Tasks.queue.push({ id, socket });
             }).on(QueueEvents[2], () => {
                 Tasks.queue.shift();
                 clearTimeout(Tasks.timer);
                 let item = first(Tasks.queue);
-                if (item) {
-                    Tasks.current = item.id;
-                    if (!item.socket.destroyed) {
-                        item.socket.write(transfer_1.send(QueueEvents.acquired, item.id), () => {
-                            Tasks.timer = setTimeout(() => {
-                                item.socket.emit(QueueEvents[2]);
-                            }, this.timeout);
-                        });
-                    }
-                    else {
-                        socket.emit(QueueEvents[2]);
-                    }
-                }
+                item && this.respond(item.socket, item.id);
             }).on(QueueEvents[3], (id) => {
                 let length = Tasks.queue.length;
                 socket.write(transfer_1.send(QueueEvents.gotLength, id, length && length - 1));
@@ -132,6 +112,19 @@ class Queue {
     }
     send(event, id) {
         this.socket.write(transfer_1.send(event, id));
+    }
+    respond(socket, id, immediate = false) {
+        Tasks.current = id;
+        if (!socket.destroyed) {
+            return socket.write(transfer_1.send(QueueEvents.acquired, id), () => {
+                Tasks.timer = setTimeout(() => {
+                    socket.emit(QueueEvents[2]);
+                }, this.timeout);
+            });
+        }
+        else if (!immediate) {
+            return socket.emit(QueueEvents[2]);
+        }
     }
 }
 exports.Queue = Queue;

@@ -39,42 +39,18 @@ export class Queue {
                 socket.emit(QueueEvents[code], id, extra);
             }
         }).on(QueueEvents[0], (id: number) => {
-            if (!Tasks.queue.length) {
-                // if the queue is empty, run the task immediately
-                Tasks.current = id;
-                socket.write(send(QueueEvents.acquired, id), () => {
-                    // set a timer to force release when timeout.
-                    Tasks.timer = setTimeout(() => {
-                        socket.emit(QueueEvents[2]);
-                    }, this.timeout);
-                });
-            }
-
-            if (!socket.destroyed)
-                Tasks.queue.push({ id, socket }); // push task into the queue
+            // if the queue is empty, run the task immediately
+            Tasks.queue.length || this.respond(socket, id, true);
+            // push task into the queue
+            socket.destroyed || Tasks.queue.push({ id, socket });
         }).on(QueueEvents[2], () => {
             Tasks.queue.shift(); // remove the running task
             clearTimeout(Tasks.timer);
 
             // run the next task
             let item = first(Tasks.queue);
-            if (item) {
-                Tasks.current = item.id;
-
-                if (!item.socket.destroyed) {
-                    item.socket.write(send(QueueEvents.acquired, item.id), () => {
-                        Tasks.timer = setTimeout(() => {
-                            item.socket.emit(QueueEvents[2]);
-                        }, this.timeout);
-                    });
-                } else {
-                    // if the socket is destroyed whether normally or 
-                    // abnormally before responding acquired queue lock,
-                    // release it immediately.
-                    socket.emit(QueueEvents[2]);
-                }
-            }
-        }).on(QueueEvents[3], (id: string) => {
+            item && this.respond(item.socket, item.id);
+        }).on(QueueEvents[3], (id: number) => {
             let length = Tasks.queue.length;
             socket.write(send(QueueEvents.gotLength, id, length && length - 1));
         }).on("error", (err) => {
@@ -165,6 +141,22 @@ export class Queue {
 
     private send(event: number, id?: number) {
         this.socket.write(send(event, id));
+    }
+
+    private respond(socket: net.Socket, id: number, immediate = false) {
+        Tasks.current = id;
+        if (!socket.destroyed) {
+            return socket.write(send(QueueEvents.acquired, id), () => {
+                // set a timer to force release when timeout.
+                Tasks.timer = setTimeout(() => {
+                    socket.emit(QueueEvents[2]);
+                }, this.timeout);
+            });
+        } else if (!immediate) {
+            // if the socket is destroyed whether normally or abnormally before 
+            // responding acquired queue lock, release it immediately.
+            return socket.emit(QueueEvents[2]);
+        }
     }
 }
 
