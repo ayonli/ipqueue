@@ -1,12 +1,12 @@
 import * as net from "net";
 import { EventEmitter } from "events";
-import uuid = require("uuid/v4");
 import first = require("lodash/first");
 import isSocketResetError = require("is-socket-reset-error");
 import { openChannel } from "open-channel";
 import { send, receive } from './transfer';
 
-type Task = { id: string, socket: net.Socket };
+var taskId = 0;
+type Task = { id: number, socket: net.Socket };
 const Tasks: {
     current: Task["id"];
     queue: Task[];
@@ -16,30 +16,43 @@ const Tasks: {
     queue: [],
     timer: null
 };
+enum QueueEvents {
+    acquire,
+    acquired,
+    release,
+    getLength,
+    gotLength
+}
+
+function getTaskId() {
+    let id = taskId++;
+    if (taskId === Number.MAX_SAFE_INTEGER) taskId = 0;
+    return id;
+}
 
 export class Queue {
     private errorHandler: (err: Error) => void;
-    private tasks: { [id: string]: EventEmitter } = {};
+    private tasks: { [id: number]: EventEmitter } = {};
     private channel = openChannel(this.name, socket => {
         socket.on("data", (buf) => {
-            for (let [event, id, extra] of receive(buf)) {
-                socket.emit(event, id, extra);
+            for (let [code, id, extra] of receive(buf)) {
+                socket.emit(QueueEvents[code], id, extra);
             }
-        }).on("acquire", (id: string) => {
+        }).on(QueueEvents[0], (id: number) => {
             if (!Tasks.queue.length) {
                 // if the queue is empty, run the task immediately
                 Tasks.current = id;
-                socket.write(send("acquired", id), () => {
+                socket.write(send(QueueEvents.acquired, id), () => {
                     // set a timer to force release when timeout.
                     Tasks.timer = setTimeout(() => {
-                        socket.emit("release");
+                        socket.emit(QueueEvents[2]);
                     }, this.timeout);
                 });
             }
 
             if (!socket.destroyed)
                 Tasks.queue.push({ id, socket }); // push task into the queue
-        }).on("release", () => {
+        }).on(QueueEvents[2], () => {
             Tasks.queue.shift(); // remove the running task
             clearTimeout(Tasks.timer);
 
@@ -49,21 +62,21 @@ export class Queue {
                 Tasks.current = item.id;
 
                 if (!item.socket.destroyed) {
-                    item.socket.write(send("acquired", item.id), () => {
+                    item.socket.write(send(QueueEvents.acquired, item.id), () => {
                         Tasks.timer = setTimeout(() => {
-                            item.socket.emit("release");
+                            item.socket.emit(QueueEvents[2]);
                         }, this.timeout);
                     });
                 } else {
                     // if the socket is destroyed whether normally or 
                     // abnormally before responding acquired queue lock,
                     // release it immediately.
-                    socket.emit("release");
+                    socket.emit(QueueEvents[2]);
                 }
             }
-        }).on("getLength", (id: string) => {
+        }).on(QueueEvents[3], (id: string) => {
             let length = Tasks.queue.length;
-            socket.write(send("gotLength", id, length && length - 1));
+            socket.write(send(QueueEvents.gotLength, id, length && length - 1));
         }).on("error", (err) => {
             if (isSocketResetError(err)) {
                 try {
@@ -74,8 +87,8 @@ export class Queue {
         });
     });
     private socket = this.channel.connect().on("data", buf => {
-        for (let [event, id, extra] of receive(buf)) {
-            this.tasks[id].emit(event, id, extra);
+        for (let [code, id, extra] of receive(buf)) {
+            this.tasks[id].emit(QueueEvents[code], id, extra);
         }
     });
 
@@ -107,13 +120,11 @@ export class Queue {
      * run the task automatically.
      */
     push(task: (next: () => void) => void) {
-        let id = uuid(),
-            next = () => {
-                this.send("release", id);
-            };
+        let id = getTaskId(),
+            next = () => this.send(QueueEvents.release, id);
 
         this.tasks[id] = new EventEmitter();
-        this.tasks[id].once("acquired", () => {
+        this.tasks[id].once(QueueEvents[1], () => {
             try {
                 delete this.tasks[id];
                 task(next);
@@ -122,7 +133,7 @@ export class Queue {
                     this.errorHandler(err);
             }
         });
-        this.send("acquire", id);
+        this.send(QueueEvents.acquire, id);
 
         return this;
     }
@@ -133,13 +144,13 @@ export class Queue {
             if (!this.connected)
                 return resolve(0);
 
-            let id = uuid(),
+            let id = getTaskId(),
                 timer = setTimeout(() => {
                     reject(new Error("failed to get queue length"));
                 }, this.timeout);
 
             this.tasks[id] = new EventEmitter();
-            this.tasks[id].once("gotLength", (id: string, length: number) => {
+            this.tasks[id].once(QueueEvents[4], (id: number, length: number) => {
                 clearTimeout(timer);
                 try {
                     delete this.tasks[id];
@@ -148,12 +159,12 @@ export class Queue {
                     reject(err);
                 }
             });
-            this.send("getLength", id);
+            this.send(QueueEvents.getLength, id);
         });
     }
 
-    private send(event: string, id?: string) {
-        return this.socket.write(send(event, id));
+    private send(event: number, id?: number) {
+        this.socket.write(send(event, id));
     }
 }
 

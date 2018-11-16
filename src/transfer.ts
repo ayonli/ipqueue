@@ -1,8 +1,8 @@
-export function send(event: string, ...data: any[]) {
+export function send(event: number, ...data: any[]) {
     return Buffer.from(JSON.stringify([event, ...data]) + "\r\n\r\n");
 }
 
-export function receive(buf: Buffer): Array<[string, string, any]> {
+export function receive(buf: Buffer): Array<[number, number, any]> {
     let pack = buf.toString().split("\r\n\r\n"),
         parts = [];
 
