@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import first = require("lodash/first");
 import isSocketResetError = require("is-socket-reset-error");
 import { openChannel } from "open-channel";
-import { send, receive } from './transfer';
+import { send, receive } from "bsp";
 
 var taskId = 0;
 type Task = { id: number, socket: net.Socket };
@@ -34,8 +34,10 @@ export class Queue {
     private errorHandler: (err: Error) => void;
     private tasks: { [id: number]: EventEmitter } = {};
     private channel = openChannel(this.name, socket => {
+        let remains = [];
         socket.on("data", (buf) => {
-            for (let [code, id, extra] of receive(buf)) {
+            let msg = receive<[number, number, any]>(buf, remains);
+            for (let [code, id, extra] of msg) {
                 socket.emit(QueueEvents[code], id, extra);
             }
         }).on(QueueEvents[0], (id: number) => {
@@ -62,8 +64,10 @@ export class Queue {
             }
         });
     });
+    private remains: Buffer[] = [];
     private socket = this.channel.connect().on("data", buf => {
-        for (let [code, id, extra] of receive(buf)) {
+        let msg = receive<[number, number, any]>(buf, this.remains);
+        for (let [code, id, extra] of msg) {
             this.tasks[id].emit(QueueEvents[code], id, extra);
         }
     });

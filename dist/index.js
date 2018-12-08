@@ -4,7 +4,7 @@ const events_1 = require("events");
 const first = require("lodash/first");
 const isSocketResetError = require("is-socket-reset-error");
 const open_channel_1 = require("open-channel");
-const transfer_1 = require("./transfer");
+const bsp_1 = require("bsp");
 var taskId = 0;
 const Tasks = {
     current: void 0,
@@ -31,8 +31,10 @@ class Queue {
         this.timeout = timeout;
         this.tasks = {};
         this.channel = open_channel_1.openChannel(this.name, socket => {
+            let remains = [];
             socket.on("data", (buf) => {
-                for (let [code, id, extra] of transfer_1.receive(buf)) {
+                let msg = bsp_1.receive(buf, remains);
+                for (let [code, id, extra] of msg) {
                     socket.emit(QueueEvents[code], id, extra);
                 }
             }).on(QueueEvents[0], (id) => {
@@ -45,7 +47,7 @@ class Queue {
                 item && this.respond(item.socket, item.id);
             }).on(QueueEvents[3], (id) => {
                 let length = Tasks.queue.length;
-                socket.write(transfer_1.send(QueueEvents.gotLength, id, length && length - 1));
+                socket.write(bsp_1.send(QueueEvents.gotLength, id, length && length - 1));
             }).on("error", (err) => {
                 if (isSocketResetError(err)) {
                     try {
@@ -56,8 +58,10 @@ class Queue {
                 }
             });
         });
+        this.remains = [];
         this.socket = this.channel.connect().on("data", buf => {
-            for (let [code, id, extra] of transfer_1.receive(buf)) {
+            let msg = bsp_1.receive(buf, this.remains);
+            for (let [code, id, extra] of msg) {
                 this.tasks[id].emit(QueueEvents[code], id, extra);
             }
         });
@@ -111,12 +115,12 @@ class Queue {
         });
     }
     send(event, id) {
-        this.socket.write(transfer_1.send(event, id));
+        this.socket.write(bsp_1.send(event, id));
     }
     respond(socket, id, immediate = false) {
         Tasks.current = id;
         if (!socket.destroyed) {
-            return socket.write(transfer_1.send(QueueEvents.acquired, id), () => {
+            return socket.write(bsp_1.send(QueueEvents.acquired, id), () => {
                 Tasks.timer = setTimeout(() => {
                     socket.emit(QueueEvents[2]);
                 }, this.timeout);
