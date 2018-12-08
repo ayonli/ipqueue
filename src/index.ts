@@ -79,7 +79,7 @@ export class Queue {
      * otherwise.
      */
     get connected() {
-        return this.channel.connect;
+        return this.channel.connected;
     }
 
     /** Closes connection to the queue server. */

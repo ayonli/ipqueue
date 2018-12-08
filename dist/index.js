@@ -67,7 +67,7 @@ class Queue {
         });
     }
     get connected() {
-        return this.channel.connect;
+        return this.channel.connected;
     }
     disconnect() {
         this.socket.destroyed || this.socket.destroy();
