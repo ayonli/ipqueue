@@ -1,6 +1,6 @@
 {
   "name": "ipqueue",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A inter-process task queue implementation for NodeJS.",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -27,7 +27,7 @@
     "bsp": "^0.2.0",
     "is-socket-reset-error": "^0.1.1",
     "lodash": "^4.17.11",
-    "open-channel": "^0.1.8"
+    "open-channel": "^0.1.9"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.121",
