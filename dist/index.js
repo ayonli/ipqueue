@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const first = require("lodash/first");
-const isSocketResetError = require("is-socket-reset-error");
 const open_channel_1 = require("open-channel");
 const bsp_1 = require("bsp");
 var taskId = 0;
@@ -48,15 +47,7 @@ class Queue {
             }).on(QueueEvents[3], (id) => {
                 let length = Tasks.queue.length;
                 socket.write(bsp_1.send(QueueEvents.gotLength, id, length && length - 1));
-            }).on("error", (err) => {
-                if (isSocketResetError(err)) {
-                    try {
-                        socket.destroy();
-                        socket.unref();
-                    }
-                    finally { }
-                }
-            });
+            }).on("end", socket.destroy).on("close", socket.unref);
         });
         this.remains = [];
         this.socket = this.channel.connect().on("data", buf => {

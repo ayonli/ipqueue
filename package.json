@@ -1,6 +1,6 @@
 {
   "name": "ipqueue",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A inter-process task queue implementation for NodeJS.",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -24,15 +24,14 @@
   },
   "homepage": "https://github.com/hyurl/ipqueue#readme",
   "dependencies": {
-    "bsp": "^0.2.0",
-    "is-socket-reset-error": "^0.1.1",
+    "bsp": "^0.2.1",
     "lodash": "^4.17.11",
-    "open-channel": "^0.1.9"
+    "open-channel": "^0.1.10"
   },
   "devDependencies": {
-    "@types/lodash": "^4.14.121",
-    "@types/node": "^10.12.26",
-    "source-map-support": "^0.5.10"
+    "@types/lodash": "^4.14.123",
+    "@types/node": "^10.14.4",
+    "source-map-support": "^0.5.11"
   },
   "engines": {
     "node": ">=6.0"

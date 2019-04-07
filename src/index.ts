@@ -1,7 +1,6 @@
 import * as net from "net";
 import { EventEmitter } from "events";
 import first = require("lodash/first");
-import isSocketResetError = require("is-socket-reset-error");
 import { openChannel } from "open-channel";
 import { send, receive } from "bsp";
 
@@ -55,14 +54,7 @@ export class Queue {
         }).on(QueueEvents[3], (id: number) => {
             let length = Tasks.queue.length;
             socket.write(send(QueueEvents.gotLength, id, length && length - 1));
-        }).on("error", (err) => {
-            if (isSocketResetError(err)) {
-                try {
-                    socket.destroy();
-                    socket.unref();
-                } finally { }
-            }
-        });
+        }).on("end", socket.destroy).on("close", socket.unref);
     });
     private remains: Buffer[] = [];
     private socket = this.channel.connect().on("data", buf => {
