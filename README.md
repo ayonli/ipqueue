@@ -121,6 +121,8 @@ into NodeJS.
     queue.
 - `queue.onError(handler: (err: Error) => void): this` Binds an error handler to
     catch errors whenever occurred.
+- `queue.setTimeout(timeout: number): void` Sets a timeout to force release the
+    queue for next task.
 
 ## What Can't IPQueue Do?
 

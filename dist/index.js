@@ -29,10 +29,11 @@ class Queue {
         this.name = name;
         this.timeout = timeout;
         this.tasks = {};
+        this.temp = [];
         this.channel = open_channel_1.openChannel(this.name, socket => {
-            let remains = [];
+            let temp = [];
             socket.on("data", (buf) => {
-                let msg = bsp_1.receive(buf, remains);
+                let msg = bsp_1.receive(buf, temp);
                 for (let [code, id, extra] of msg) {
                     socket.emit(QueueEvents[code], id, extra);
                 }
@@ -49,9 +50,8 @@ class Queue {
                 socket.write(bsp_1.send(QueueEvents.gotLength, id, length && length - 1));
             }).on("end", socket.destroy).on("close", socket.unref);
         });
-        this.remains = [];
         this.socket = this.channel.connect().on("data", buf => {
-            let msg = bsp_1.receive(buf, this.remains);
+            let msg = bsp_1.receive(buf, this.temp);
             for (let [code, id, extra] of msg) {
                 this.tasks[id].emit(QueueEvents[code], id, extra);
             }
@@ -104,6 +104,9 @@ class Queue {
             });
             this.send(QueueEvents.getLength, id);
         });
+    }
+    setTimeout(timeout) {
+        this.timeout = timeout;
     }
     send(event, id) {
         this.socket.write(bsp_1.send(event, id));

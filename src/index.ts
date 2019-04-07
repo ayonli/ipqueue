@@ -30,12 +30,13 @@ function getTaskId() {
 }
 
 export class Queue {
-    private errorHandler: (err: Error) => void;
-    private tasks: { [id: number]: EventEmitter } = {};
-    private channel = openChannel(this.name, socket => {
-        let remains = [];
+    protected errorHandler: (err: Error) => void;
+    protected tasks: { [id: number]: EventEmitter } = {};
+    private temp: Buffer[] = [];
+    protected channel = openChannel(this.name, socket => {
+        let temp = [];
         socket.on("data", (buf) => {
-            let msg = receive<[number, number, any]>(buf, remains);
+            let msg = receive<[number, number, any]>(buf, temp);
             for (let [code, id, extra] of msg) {
                 socket.emit(QueueEvents[code], id, extra);
             }
@@ -56,9 +57,8 @@ export class Queue {
             socket.write(send(QueueEvents.gotLength, id, length && length - 1));
         }).on("end", socket.destroy).on("close", socket.unref);
     });
-    private remains: Buffer[] = [];
-    private socket = this.channel.connect().on("data", buf => {
-        let msg = receive<[number, number, any]>(buf, this.remains);
+    protected socket = this.channel.connect().on("data", buf => {
+        let msg = receive<[number, number, any]>(buf, this.temp);
         for (let [code, id, extra] of msg) {
             this.tasks[id].emit(QueueEvents[code], id, extra);
         }
@@ -133,6 +133,11 @@ export class Queue {
             });
             this.send(QueueEvents.getLength, id);
         });
+    }
+
+    /** Sets a timeout to force release the queue for next task. */
+    setTimeout(timeout: number) {
+        this.timeout = timeout;
     }
 
     private send(event: number, id?: number) {
