@@ -54,7 +54,11 @@ export class Queue {
             item && this.respond(item.socket, item.id);
         }).on(QueueEvents[3], (id: number) => {
             let length = Tasks.queue.length;
-            socket.write(send(QueueEvents.gotLength, id, length && length - 1));
+            socket.write(send([
+                QueueEvents.gotLength,
+                id,
+                length && length - 1
+            ]));
         }).on("end", socket.destroy).on("close", socket.unref);
     });
     protected socket = this.channel.connect().on("data", buf => {
@@ -141,13 +145,13 @@ export class Queue {
     }
 
     private send(event: number, id?: number) {
-        this.socket.write(send(event, id));
+        this.socket.write(send([event, id]));
     }
 
     private respond(socket: net.Socket, id: number, immediate = false) {
         Tasks.current = id;
         if (!socket.destroyed) {
-            return socket.write(send(QueueEvents.acquired, id), () => {
+            return socket.write(send([QueueEvents.acquired, id]), () => {
                 // set a timer to force release when timeout.
                 Tasks.timer = setTimeout(() => {
                     socket.emit(QueueEvents[2]);

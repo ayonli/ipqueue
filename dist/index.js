@@ -47,7 +47,11 @@ class Queue {
                 item && this.respond(item.socket, item.id);
             }).on(QueueEvents[3], (id) => {
                 let length = Tasks.queue.length;
-                socket.write(bsp_1.send(QueueEvents.gotLength, id, length && length - 1));
+                socket.write(bsp_1.send([
+                    QueueEvents.gotLength,
+                    id,
+                    length && length - 1
+                ]));
             }).on("end", socket.destroy).on("close", socket.unref);
         });
         this.socket = this.channel.connect().on("data", buf => {
@@ -109,12 +113,12 @@ class Queue {
         this.timeout = timeout;
     }
     send(event, id) {
-        this.socket.write(bsp_1.send(event, id));
+        this.socket.write(bsp_1.send([event, id]));
     }
     respond(socket, id, immediate = false) {
         Tasks.current = id;
         if (!socket.destroyed) {
-            return socket.write(bsp_1.send(QueueEvents.acquired, id), () => {
+            return socket.write(bsp_1.send([QueueEvents.acquired, id]), () => {
                 Tasks.timer = setTimeout(() => {
                     socket.emit(QueueEvents[2]);
                 }, this.timeout);
