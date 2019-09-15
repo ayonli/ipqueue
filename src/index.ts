@@ -2,7 +2,7 @@ import * as net from "net";
 import { EventEmitter } from "events";
 import first = require("lodash/first");
 import { openChannel } from "open-channel";
-import { send, receive } from "bsp";
+import { encode, decode } from "bsp";
 
 var taskId = 0;
 type Task = { id: number, socket: net.Socket };
@@ -36,7 +36,7 @@ export class Queue {
     protected channel = openChannel(this.name, socket => {
         let temp = [];
         socket.on("data", (buf) => {
-            let msg = receive<[number, number, any]>(buf, temp);
+            let msg = decode<[number, number, any]>(buf, temp);
             for (let [code, id, extra] of msg) {
                 socket.emit(QueueEvents[code], id, extra);
             }
@@ -54,7 +54,7 @@ export class Queue {
             item && this.respond(item.socket, item.id);
         }).on(QueueEvents[3], (id: number) => {
             let length = Tasks.queue.length;
-            socket.write(send([
+            socket.write(encode([
                 QueueEvents.gotLength,
                 id,
                 length && length - 1
@@ -62,7 +62,7 @@ export class Queue {
         }).on("end", socket.destroy).on("close", socket.unref);
     });
     protected socket = this.channel.connect().on("data", buf => {
-        let msg = receive<[number, number, any]>(buf, this.temp);
+        let msg = decode<[number, number, any]>(buf, this.temp);
         for (let [code, id, extra] of msg) {
             this.tasks[id].emit(QueueEvents[code], id, extra);
         }
@@ -145,13 +145,13 @@ export class Queue {
     }
 
     private send(event: number, id?: number) {
-        this.socket.write(send([event, id]));
+        this.socket.write(encode([event, id]));
     }
 
     private respond(socket: net.Socket, id: number, immediate = false) {
         Tasks.current = id;
         if (!socket.destroyed) {
-            return socket.write(send([QueueEvents.acquired, id]), () => {
+            return socket.write(encode([QueueEvents.acquired, id]), () => {
                 // set a timer to force release when timeout.
                 Tasks.timer = setTimeout(() => {
                     socket.emit(QueueEvents[2]);
